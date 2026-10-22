@@ -83,3 +83,21 @@ export function preconditionFailed(transitionId: string, failures: readonly Rule
 export function cycleLimitExceeded(transitionId: string, max: number, message: string): WorkflowError {
   return new WorkflowError('CYCLE_LIMIT_EXCEEDED', message, { transitionId, max });
 }
+
+export function actionNotAllowedInState(
+  action: string,
+  allowedStates: readonly string[],
+  current: string,
+): WorkflowError {
+  return new WorkflowError(
+    'ACTION_NOT_ALLOWED_IN_STATE',
+    `Action ${action} is only allowed in states: ${allowedStates.join(', ')} (current: ${current})`,
+    { action, allowedStates: [...allowedStates], current },
+  );
+}
+
+export function validationError(errors: readonly { field: string; message: string }[]): WorkflowError {
+  return new WorkflowError('VALIDATION_ERROR', errors.map((e) => e.message).join('; '), {
+    errors: errors.map((e) => ({ ...e })),
+  });
+}

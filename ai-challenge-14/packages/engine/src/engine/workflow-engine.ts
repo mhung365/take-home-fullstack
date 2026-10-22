@@ -2,6 +2,7 @@ import { systemClock, type Clock } from '../clock';
 import { CORE_FIELDS, type LoadedConfig } from '../config/loader';
 import type { TransitionConfig, UserConfig, WorkflowConfig } from '../config/schema';
 import {
+  actionNotAllowedInState,
   cycleLimitExceeded,
   preconditionFailed,
   staleClaim,
@@ -13,10 +14,20 @@ import type { AuditEntry, Claim, NewAuditEntry } from '../model/types';
 import { defaultRules } from '../rules/builtins';
 import { evaluatePreconditions } from '../rules/evaluate';
 import type { RuleRegistry } from '../rules/types';
+import { isEmpty } from '../rules/values';
 import { defaultSideEffects } from '../side-effects/builtins';
 import type { SideEffectHandler, SideEffectRegistry } from '../side-effects/types';
 import type { ClaimTx, WorkflowStore } from '../store/types';
 import { deepFreeze, isPlainObject } from '../util';
+import {
+  ACKNOWLEDGE_REASON,
+  CLAIM_CREATED_REASON,
+  acknowledgementFields,
+  alreadyAcknowledged,
+  parseCreateInput,
+  type AcknowledgeResult,
+  type CreateClaimInput,
+} from './actions';
 import {
   TransitionIndex,
   checkPayload,
@@ -94,6 +105,91 @@ export class WorkflowEngine {
 
     if (!outcome.ok) throw outcome.error;
     return outcome.value;
+  }
+
+  /**
+   * DESIGN 6.2. Rejections are thrown without audit: there is no claim to attach them to.
+   * The claim and its CLAIM_CREATED entry (seq 1) are written in one store transaction.
+   */
+  async createClaim(userId: string, input: CreateClaimInput): Promise<Claim> {
+    const user = this.requireUser(userId);
+    const action = this.workflow.actions.createClaim;
+    if (!action.roles.includes(user.role)) throw unauthorizedRole('Action createClaim', action.roles, user);
+
+    const { core, data } = parseCreateInput(input, action.inputs);
+    const now = this.clock.now().toISOString();
+    const status = this.workflow.initialState;
+    return this.store.createClaim(
+      { ...core, status, stateEnteredAt: now, createdAt: now, createdBy: user.id, data },
+      {
+        type: 'CLAIM_CREATED',
+        timestamp: now,
+        fromState: null,
+        toState: status,
+        triggeredBy: { userId: user.id, role: user.role },
+        reason: CLAIM_CREATED_REASON,
+        data: structuredClone(input),
+      },
+    );
+  }
+
+  /**
+   * DESIGN 6.2. Same transaction rules as transition: rejections are audited as
+   * ACTION_REJECTED and committed, then thrown as WorkflowError.
+   */
+  async acknowledge(claimId: string, userId: string, notes?: string, expectedVersion?: number): Promise<AcknowledgeResult> {
+    const user = this.requireUser(userId);
+
+    const outcome = await this.store.withClaim(claimId, async (tx): Promise<Outcome<AcknowledgeResult>> => {
+      const now = this.clock.now();
+      const error = this.checkAcknowledge(tx.claim, user, expectedVersion);
+      if (error) {
+        // Must return, not throw: withClaim discards everything written when fn throws.
+        await tx.appendAudit(actionRejectedEntry('acknowledge', tx.claim, user, error, notes, now));
+        return reject(error);
+      }
+      return { ok: true, value: await this.applyAcknowledge(tx, user, notes, now) };
+    });
+
+    if (!outcome.ok) throw outcome.error;
+    return outcome.value;
+  }
+
+  private checkAcknowledge(claim: Claim, user: UserConfig, expectedVersion: number | undefined): WorkflowError | null {
+    if (expectedVersion !== undefined && expectedVersion !== claim.version) {
+      return staleClaim(claim.id, claim.version, expectedVersion);
+    }
+    const action = this.workflow.actions.acknowledge;
+    if (!action.roles.includes(user.role)) return unauthorizedRole('Action acknowledge', action.roles, user);
+    if (!action.allowedStates.includes(claim.status)) {
+      return actionNotAllowedInState('acknowledge', action.allowedStates, claim.status);
+    }
+    return alreadyAcknowledged(claim);
+  }
+
+  private async applyAcknowledge(
+    tx: ClaimTx,
+    user: UserConfig,
+    notes: string | undefined,
+    now: Date,
+  ): Promise<AcknowledgeResult> {
+    const at = now.toISOString();
+    const fields = acknowledgementFields(user.id, at);
+    const draft = structuredClone(tx.claim);
+    Object.assign(draft.data, structuredClone(fields));
+
+    await tx.saveClaim(draft);
+    const audit = await tx.appendAudit({
+      type: 'MEMBER_ACKNOWLEDGED',
+      timestamp: at,
+      fromState: draft.status,
+      toState: draft.status,
+      triggeredBy: { userId: user.id, role: user.role },
+      reason: isEmpty(notes) ? ACKNOWLEDGE_REASON : notes!,
+      ...notesField(notes),
+      data: fields,
+    });
+    return { claim: { ...draft, version: tx.claim.version + 1 }, audit };
   }
 
   private requireUser(userId: string): UserConfig {
@@ -269,5 +365,26 @@ function rejectedEntry(
     reason: error.message,
     ...notesField(request.notes),
     data: { code: error.code, errors: rejectionErrors(error), payload: structuredClone(request.payload ?? {}) },
+  };
+}
+
+/** Actions don't change state, so fromState and toState are both the claim's current state. */
+function actionRejectedEntry(
+  action: string,
+  claim: Claim,
+  user: UserConfig,
+  error: WorkflowError,
+  notes: string | undefined,
+  now: Date,
+): NewAuditEntry {
+  return {
+    type: 'ACTION_REJECTED',
+    timestamp: now.toISOString(),
+    fromState: claim.status,
+    toState: claim.status,
+    triggeredBy: { userId: user.id, role: user.role },
+    reason: error.message,
+    ...notesField(notes),
+    data: { action, code: error.code, errors: rejectionErrors(error) },
   };
 }
