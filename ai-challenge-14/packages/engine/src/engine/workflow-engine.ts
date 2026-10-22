@@ -3,6 +3,7 @@ import { CORE_FIELDS, type LoadedConfig } from '../config/loader';
 import type { TransitionConfig, UserConfig, WorkflowConfig } from '../config/schema';
 import {
   actionNotAllowedInState,
+  claimNotFound,
   cycleLimitExceeded,
   preconditionFailed,
   staleClaim,
@@ -13,7 +14,7 @@ import {
 import type { AuditEntry, Claim, NewAuditEntry } from '../model/types';
 import { defaultRules } from '../rules/builtins';
 import { evaluatePreconditions } from '../rules/evaluate';
-import type { RuleRegistry } from '../rules/types';
+import type { EvaluationMode, EvaluationResult, RuleRegistry } from '../rules/types';
 import { isEmpty } from '../rules/values';
 import { defaultSideEffects } from '../side-effects/builtins';
 import type { SideEffectHandler, SideEffectRegistry } from '../side-effects/types';
@@ -28,6 +29,13 @@ import {
   type AcknowledgeResult,
   type CreateClaimInput,
 } from './actions';
+import { ruleChecks, type AvailableTransition, type AvailableTransitions } from './available';
+import {
+  SYSTEM_ROLE,
+  type ProcessedSystemTask,
+  type SkippedSystemTask,
+  type SystemTasksResult,
+} from './system-tasks';
 import {
   TransitionIndex,
   checkPayload,
@@ -155,6 +163,114 @@ export class WorkflowEngine {
     return outcome.value;
   }
 
+  /**
+   * DESIGN 6.2. Runs every transition open to SYSTEM_ROLE on the claims in its from state,
+   * regardless of the caller's role. Claims are listed without a lock up front, then each one gets its own
+   * transaction via tryWithClaim, where status, preconditions and cycle limit are checked
+   * again. Claims that don't qualify are skipped without audit; an error on one claim
+   * rolls back only that claim.
+   */
+  async runSystemTasks(userId: string): Promise<SystemTasksResult> {
+    const user = this.requireUser(userId);
+    const action = this.workflow.actions.runSystemTasks;
+    if (!action.roles.includes(user.role)) throw unauthorizedRole('Action runSystemTasks', action.roles, user);
+
+    // Scanned before running anything, so a claim moved by one task isn't picked up by a later one.
+    const work: { transition: TransitionConfig; claimIds: string[] }[] = [];
+    for (const transition of this.workflow.transitions) {
+      if (!transition.roles.includes(SYSTEM_ROLE)) continue;
+      const claims = await this.store.listClaims({ status: [transition.from] });
+      work.push({ transition, claimIds: claims.map((c) => c.id) });
+    }
+
+    const result: SystemTasksResult = { processed: [], skipped: [] };
+    for (const { transition, claimIds } of work) {
+      for (const claimId of claimIds) {
+        const task = { claimId, transitionId: transition.id };
+        try {
+          const outcome = await this.store.tryWithClaim(claimId, (tx) => this.runSystemTask(tx, user, transition));
+          if (outcome === null) {
+            result.skipped.push({ ...task, reason: 'busy', message: `Claim ${claimId} is locked by another request` });
+          } else if ('reason' in outcome) {
+            result.skipped.push({ ...task, ...outcome });
+          } else {
+            result.processed.push({ ...task, ...outcome });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          result.skipped.push({ ...task, reason: 'error', message });
+        }
+      }
+    }
+    return result;
+  }
+
+  private async runSystemTask(
+    tx: ClaimTx,
+    user: UserConfig,
+    transition: TransitionConfig,
+  ): Promise<
+    Omit<ProcessedSystemTask, 'claimId' | 'transitionId'> | Omit<SkippedSystemTask, 'claimId' | 'transitionId'>
+  > {
+    const { claim } = tx;
+    if (claim.status !== transition.from) {
+      return { reason: 'state_changed', message: `Claim is in ${claim.status}, no longer in ${transition.from}` };
+    }
+
+    const now = this.clock.now();
+    const draft = mergeDraft(claim, {});
+    const evaluation = this.evaluate(transition, draft, {}, now, 'execute');
+    if (!evaluation.passed) {
+      const { message } = preconditionFailed(transition.id, evaluation.failures);
+      return { reason: 'preconditions_not_met', message, failures: evaluation.failures };
+    }
+
+    const cycleError = await this.checkCycleLimit(tx, transition);
+    if (cycleError) return { reason: 'cycle_limit_reached', message: cycleError.message };
+
+    const { claim: next } = await this.applyTransition(tx, user, { to: transition.to }, { transition, draft }, now);
+    return { from: transition.from, to: transition.to, version: next.version };
+  }
+
+  /**
+   * DESIGN 6.3. Read-only and lock-free: preconditions are evaluated in preview mode on the
+   * current claim with an empty payload, so the result is a hint for the UI, not a guarantee.
+   */
+  async getAvailableTransitions(claimId: string, userId?: string): Promise<AvailableTransitions> {
+    const user = userId === undefined ? undefined : this.requireUser(userId);
+    const claim = await this.store.getClaim(claimId);
+    if (!claim) throw claimNotFound(claimId);
+
+    const outgoing = this.transitions.outgoing(claim.status);
+    const audit = outgoing.some((t) => t.cycleLimit) ? await this.store.listAuditByClaim(claimId) : [];
+    const now = this.clock.now();
+
+    const transitions = outgoing.map((t): AvailableTransition => {
+      const allowedForCurrentUser = user !== undefined && t.roles.includes(user.role);
+      const evaluation = this.evaluate(t, claim, {}, now, 'preview');
+
+      let cycleLimit: AvailableTransition['cycleLimit'];
+      if (t.cycleLimit) {
+        const used = audit.filter((e) => e.type === 'TRANSITION' && e.transitionId === t.id).length;
+        cycleLimit = { max: t.cycleLimit.max, used, remaining: Math.max(0, t.cycleLimit.max - used) };
+      }
+
+      return {
+        transitionId: t.id,
+        to: t.to,
+        description: t.description,
+        roles: [...t.roles],
+        inputs: [...t.inputs],
+        allowedForCurrentUser,
+        preconditions: { passed: evaluation.passed, rules: ruleChecks(evaluation.tree), tree: evaluation.tree },
+        ...(cycleLimit && { cycleLimit }),
+        enabled: allowedForCurrentUser && evaluation.passed && (cycleLimit === undefined || cycleLimit.remaining > 0),
+      };
+    });
+
+    return { claimId: claim.id, status: claim.status, version: claim.version, transitions };
+  }
+
   private checkAcknowledge(claim: Claim, user: UserConfig, expectedVersion: number | undefined): WorkflowError | null {
     if (expectedVersion !== undefined && expectedVersion !== claim.version) {
       return staleClaim(claim.id, claim.version, expectedVersion);
@@ -222,27 +338,44 @@ export class WorkflowEngine {
     if (payloadError) return reject(payloadError, transition.id);
 
     const draft = mergeDraft(claim, payload);
-    const evaluation = evaluatePreconditions(
+    const evaluation = this.evaluate(transition, draft, payload, now, 'execute');
+    if (!evaluation.passed) return reject(preconditionFailed(transition.id, evaluation.failures), transition.id);
+
+    const cycleError = await this.checkCycleLimit(tx, transition);
+    if (cycleError) return reject(cycleError, transition.id);
+
+    return { ok: true, value: { transition, draft } };
+  }
+
+  private evaluate(
+    transition: TransitionConfig,
+    claim: Claim,
+    payload: Record<string, unknown>,
+    now: Date,
+    mode: EvaluationMode,
+  ): EvaluationResult {
+    return evaluatePreconditions(
       transition.preconditions,
       {
-        view: claimView(draft),
+        view: claimView(claim),
         payload,
         inputs: transition.inputs,
         settings: this.workflow.settings,
         findUser: (id) => this.users.get(id),
         now,
-        mode: 'execute',
+        mode,
       },
       this.rules,
     );
-    if (!evaluation.passed) return reject(preconditionFailed(transition.id, evaluation.failures), transition.id);
+  }
 
+  /** Counted under the lock, so concurrent requests can't both pass at the max-th attempt. */
+  private async checkCycleLimit(tx: ClaimTx, transition: TransitionConfig): Promise<WorkflowError | null> {
     const { cycleLimit } = transition;
     if (cycleLimit && (await tx.countSuccessfulTransitions(transition.id)) >= cycleLimit.max) {
-      return reject(cycleLimitExceeded(transition.id, cycleLimit.max, cycleLimit.message), transition.id);
+      return cycleLimitExceeded(transition.id, cycleLimit.max, cycleLimit.message);
     }
-
-    return { ok: true, value: { transition, draft } };
+    return null;
   }
 
   private async applyTransition(

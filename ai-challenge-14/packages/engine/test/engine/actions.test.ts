@@ -1,72 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FakeClock } from '../../src/clock';
-import { loadConfig } from '../../src/config';
-import { WorkflowEngine } from '../../src/engine';
-import { WorkflowError, isWorkflowError, type ErrorCode } from '../../src/errors';
-import type { Claim, NewClaim } from '../../src/model';
-import { createBuiltinSideEffects } from '../../src/side-effects';
-import { InMemoryWorkflowStore } from '../../src/store';
-
-const configDir = resolve(__dirname, '../../../../config');
-const readJson = (file: string) => JSON.parse(readFileSync(resolve(configDir, file), 'utf8'));
-const config = loadConfig({ workflow: readJson('claims-workflow.json'), users: readJson('users.json') });
-
-const T0 = '2026-03-01T00:00:00.000Z';
-const ALL_DOCS = ['claim_form', 'invoice', 'id_proof'];
-
-const CLERK = 'u-clerk-1';
-const ASSESSOR = 'u-assessor-1';
-const FINANCE = 'u-finance-1';
-const SYSTEM = 'u-system';
-
-function setup() {
-  const store = new InMemoryWorkflowStore({ lockTimeoutMs: 500 });
-  const clock = new FakeClock(T0);
-  const engine = new WorkflowEngine({
-    config,
-    store,
-    clock,
-    sideEffects: createBuiltinSideEffects({ log: () => {}, paymentRequestId: () => 'pr-1' }),
-  });
-
-  const seed = (status = 'REJECTED', overrides: Partial<NewClaim> = {}): Promise<Claim> =>
-    store.createClaim(
-      {
-        memberId: 'm-1',
-        status,
-        stateEnteredAt: T0,
-        amount: 1500,
-        policyLimit: 10000,
-        createdAt: T0,
-        createdBy: CLERK,
-        data: { documents: [...ALL_DOCS] },
-        ...overrides,
-      },
-      {
-        type: 'CLAIM_CREATED',
-        timestamp: T0,
-        fromState: null,
-        toState: status,
-        triggeredBy: { userId: CLERK, role: 'document_clerk' },
-        reason: 'Claim created',
-      },
-    );
-
-  return { store, clock, engine, seed };
-}
-
-async function rejection(promise: Promise<unknown>, code: ErrorCode): Promise<WorkflowError> {
-  const error = await promise.then(
-    () => undefined,
-    (e: unknown) => e,
-  );
-  if (!isWorkflowError(error, code)) {
-    throw new Error(`Expected WorkflowError ${code}, got ${error instanceof Error ? error.message : String(error)}`);
-  }
-  return error;
-}
+import { isWorkflowError, type ErrorCode } from '../../src/errors';
+import type { Claim } from '../../src/model';
+import { ALL_DOCS, ASSESSOR, CLERK, FINANCE, SYSTEM, T0, rejection, setup } from './helpers';
 
 describe('WorkflowEngine.createClaim', () => {
   it('creates the claim in initialState with CLAIM_CREATED as seq 1', async () => {
@@ -165,7 +100,7 @@ describe('WorkflowEngine.createClaim', () => {
 describe('WorkflowEngine.acknowledge', () => {
   it('writes the ACKNOWLEDGE_FIELDS into data, bumps version and records MEMBER_ACKNOWLEDGED', async () => {
     const { engine, store, clock, seed } = setup();
-    const claim = await seed();
+    const claim = await seed('REJECTED');
     clock.advance({ days: 2 });
     const at = '2026-03-03T00:00:00.000Z';
 
@@ -194,7 +129,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
   it('reason defaults to the action description without notes', async () => {
     const { engine, seed } = setup();
-    const claim = await seed();
+    const claim = await seed('REJECTED');
     const { audit } = await engine.acknowledge(claim.id, CLERK);
     expect(audit.reason).toBe('Member acknowledgement recorded');
     expect(audit).not.toHaveProperty('notes');
@@ -202,7 +137,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
   it('lets close_rejected run before the appeal period ends (case 2)', async () => {
     const { engine, seed } = setup();
-    const claim = await seed();
+    const claim = await seed('REJECTED');
     await engine.acknowledge(claim.id, CLERK);
     const { claim: closed } = await engine.transition(claim.id, SYSTEM, { to: 'CLOSED' });
     expect(closed.status).toBe('CLOSED');
@@ -210,7 +145,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
   it('UNKNOWN_USER and CLAIM_NOT_FOUND are thrown without audit', async () => {
     const { engine, store, seed } = setup();
-    const claim = await seed();
+    const claim = await seed('REJECTED');
     await rejection(engine.acknowledge(claim.id, 'u-x'), 'UNKNOWN_USER');
     await rejection(engine.acknowledge('c-missing', CLERK), 'CLAIM_NOT_FOUND');
     expect(await store.listAllAudit()).toHaveLength(1);
@@ -246,7 +181,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
     it('STALE_CLAIM, keeping notes', async () => {
       const env = setup();
-      const claim = await env.seed();
+      const claim = await env.seed('REJECTED');
       const { error, entry } = await rejected(env, claim, CLERK, 'STALE_CLAIM', 'old screen', 0);
       expect(error.message).toBe(`Claim ${claim.id} was modified (version 1, expected 0); reload and retry`);
       expect(entry.notes).toBe('old screen');
@@ -254,7 +189,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
     it('UNAUTHORIZED_ROLE (case 17)', async () => {
       const env = setup();
-      const claim = await env.seed();
+      const claim = await env.seed('REJECTED');
       const { error, entry } = await rejected(env, claim, FINANCE, 'UNAUTHORIZED_ROLE');
       expect(error.message).toBe('Action acknowledge requires role document_clerk; user u-finance-1 has role finance');
       expect(entry.triggeredBy).toEqual({ userId: FINANCE, role: 'finance' });
@@ -269,7 +204,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
     it('ACTION_NOT_ALLOWED_IN_STATE on a second acknowledge, naming the first (case 17)', async () => {
       const env = setup();
-      const claim = await env.seed();
+      const claim = await env.seed('REJECTED');
       await env.engine.acknowledge(claim.id, CLERK);
       env.clock.advance({ hours: 1 });
 
@@ -281,7 +216,7 @@ describe('WorkflowEngine.acknowledge', () => {
 
   it('two acknowledges at once: one MEMBER_ACKNOWLEDGED, one ACTION_REJECTED (in-memory case 28)', async () => {
     const { engine, store, seed } = setup();
-    const claim = await seed();
+    const claim = await seed('REJECTED');
 
     const results = await Promise.allSettled([engine.acknowledge(claim.id, CLERK), engine.acknowledge(claim.id, CLERK)]);
 
