@@ -268,7 +268,7 @@ export class WorkflowEngine {
       };
     });
 
-    return { claimId: claim.id, status: claim.status, version: claim.version, transitions };
+    return { claim, transitions };
   }
 
   private checkAcknowledge(claim: Claim, user: UserConfig, expectedVersion: number | undefined): WorkflowError | null {

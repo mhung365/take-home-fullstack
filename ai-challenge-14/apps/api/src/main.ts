@@ -24,7 +24,9 @@ function loadConfigOrExit(): LoadedConfig {
 
 async function bootstrap() {
   const config = loadConfigOrExit();
-  const app = await NestFactory.create(AppModule.forRoot(config));
+  const demoMode = process.env.DEMO_MODE === 'true';
+  if (demoMode) logger.warn('DEMO_MODE=true: POST /dev/clock/advance is enabled');
+  const app = await NestFactory.create(AppModule.forRoot(config, { demoMode }));
   app.enableCors();
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);

@@ -1,4 +1,4 @@
-import type { Role, StateId } from '../model/types';
+import type { Claim, Role, StateId } from '../model/types';
 import type { ConditionResult } from '../rules/types';
 
 export interface RuleCheck {
@@ -33,10 +33,8 @@ export interface AvailableTransition {
 }
 
 export interface AvailableTransitions {
-  claimId: string;
-  status: StateId;
-  /** Send back as expectedVersion. */
-  version: number;
+  /** The claim the transitions were evaluated on; send claim.version back as expectedVersion. */
+  claim: Claim;
   transitions: AvailableTransition[];
 }
 

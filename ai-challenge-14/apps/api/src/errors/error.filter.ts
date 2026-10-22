@@ -1,5 +1,5 @@
 import { Catch, HttpException, HttpStatus, Logger, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
-import { isWorkflowError, type ErrorCode } from '@claims/engine';
+import { isWorkflowError, validationError, type ErrorCode } from '@claims/engine';
 import type { Response } from 'express';
 
 const STATUS_BY_CODE: Record<ErrorCode, HttpStatus> = {
@@ -23,8 +23,8 @@ export interface ErrorBody {
 }
 
 /**
- * WorkflowError maps to its status (DESIGN 7). Nest HttpExceptions (unknown route, malformed
- * body) keep their status. Anything else is a 500 whose cause is only logged server-side.
+ * WorkflowError maps to its status (DESIGN 7). A Nest 400 (malformed JSON) becomes VALIDATION_ERROR;
+ * other Nest 4xx (unknown route) keep their status. Anything else is a 500 whose cause is only logged server-side.
  */
 @Catch()
 export class ErrorFilter implements ExceptionFilter {
@@ -45,6 +45,10 @@ export class ErrorFilter implements ExceptionFilter {
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
+      // Malformed JSON is rejected by the body parser before any ZodPipe runs.
+      if (status === HttpStatus.BAD_REQUEST) {
+        return this.toResponse(validationError([{ field: '', message: `body: ${exception.message}` }]));
+      }
       if (status < 500) {
         return { status, body: { code: HttpStatus[status] ?? 'HTTP_ERROR', message: exception.message, details: null } };
       }

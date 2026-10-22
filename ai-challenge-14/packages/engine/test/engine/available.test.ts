@@ -8,7 +8,8 @@ describe('WorkflowEngine.getAvailableTransitions', () => {
 
     const result = await engine.getAvailableTransitions(claim.id, ASSESSOR);
 
-    expect(result).toMatchObject({ claimId: claim.id, status: 'UNDER_ASSESSMENT', version: 1 });
+    expect(result.claim).toEqual(claim);
+    expect(result.claim).toMatchObject({ status: 'UNDER_ASSESSMENT', version: 1 });
     expect(result.transitions.map((t) => [t.transitionId, t.to, t.enabled])).toEqual([
       ['approve', 'APPROVED', true],
       ['reject', 'REJECTED', true],
@@ -95,7 +96,7 @@ describe('WorkflowEngine.getAvailableTransitions', () => {
 
     await engine.acknowledge(acknowledged.id, CLERK);
     const afterAck = await engine.getAvailableTransitions(acknowledged.id, SYSTEM);
-    expect(afterAck.version).toBe(2);
+    expect(afterAck.claim.version).toBe(2);
     expect(afterAck.transitions[0].enabled).toBe(true);
 
     clock.advance({ days: 30 });
@@ -121,12 +122,7 @@ describe('WorkflowEngine.getAvailableTransitions', () => {
   it('a terminal state has no transitions', async () => {
     const { engine, seed } = setup();
     const claim = await seed('CLOSED');
-    expect(await engine.getAvailableTransitions(claim.id, SYSTEM)).toEqual({
-      claimId: claim.id,
-      status: 'CLOSED',
-      version: 1,
-      transitions: [],
-    });
+    expect(await engine.getAvailableTransitions(claim.id, SYSTEM)).toEqual({ claim, transitions: [] });
   });
 
   it('reads only: no audit, no version change', async () => {

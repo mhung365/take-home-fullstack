@@ -438,7 +438,7 @@ Hệ quả của việc không rollback khi side effect lỗi: nếu `createPaym
 
 ### 6.3 Transition khả dụng
 
-`getAvailableTransitions(claimId, userId?)` trả về mọi transition đi ra từ state hiện tại, mỗi cái gồm: `to`, `roles`, `inputs`, `allowedForCurrentUser` (`false` nếu không truyền `userId`), kết quả đánh giá từng precondition trên dữ liệu hiện tại, số lần còn lại nếu có `cycleLimit`, và `enabled` = `allowedForCurrentUser` và precondition đạt và `cycleLimit` còn lượt. UI dùng `enabled` để bật/tắt nút, các field còn lại để hiển thị lý do bị khóa. Hàm này chỉ đọc, không khóa; kết quả kèm `version` của claim để UI gửi lại làm `expectedVersion`.
+`getAvailableTransitions(claimId, userId?)` trả về mọi transition đi ra từ state hiện tại, mỗi cái gồm: `to`, `roles`, `inputs`, `allowedForCurrentUser` (`false` nếu không truyền `userId`), kết quả đánh giá từng precondition trên dữ liệu hiện tại, số lần còn lại nếu có `cycleLimit`, và `enabled` = `allowedForCurrentUser` và precondition đạt và `cycleLimit` còn lượt. UI dùng `enabled` để bật/tắt nút, các field còn lại để hiển thị lý do bị khóa. Hàm này chỉ đọc, không khóa; kết quả có dạng `{ claim, transitions }`, trong đó `claim` chính là bản claim dùng để đánh giá, nên UI gửi lại `claim.version` làm `expectedVersion`.
 
 Precondition được đánh giá ở chế độ `preview`, trên claim hiện tại và payload rỗng:
 
