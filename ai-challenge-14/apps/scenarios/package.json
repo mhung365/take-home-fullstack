@@ -1,0 +1,19 @@
+{
+  "name": "@claims/scenarios",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "tsc -p tsconfig.json && node dist/main.js"
+  },
+  "dependencies": {
+    "@claims/engine": "workspace:^",
+    "@claims/store-postgres": "workspace:^",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "~6.0.2"
+  }
+}

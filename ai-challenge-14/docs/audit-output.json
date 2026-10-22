@@ -1,0 +1,2268 @@
+{
+  "generatedBy": "pnpm scenarios",
+  "source": "audit_entries in claims_scenarios, read back with PostgresWorkflowStore.listAuditByClaim after all scenarios ran",
+  "config": "config/claims-workflow.json + config/users.json",
+  "clock": {
+    "start": "2026-03-02T08:00:00.000Z",
+    "end": "2026-04-01T08:50:00.000Z"
+  },
+  "claims": [
+    {
+      "scenario": "1. Happy path",
+      "claimId": "c-1",
+      "finalStatus": "CLOSED",
+      "entries": 13,
+      "audit": [
+        {
+          "id": "74888498-3d67-4b84-b654-be54f5bf1b20",
+          "seq": 1,
+          "claimId": "c-1",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-03-02T08:01:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 1500,
+            "memberId": "m-1001",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "1619db92-de28-4ccb-9282-1ea6802bf28b",
+          "seq": 2,
+          "claimId": "c-1",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:02:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Originals checked at the counter",
+          "transitionId": "verify_documents",
+          "notes": "Originals checked at the counter",
+          "data": {}
+        },
+        {
+          "id": "17dc2265-6534-465a-bb4c-df31b2673f14",
+          "seq": 3,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:02:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-1 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "fc2dd1e6-e6e4-4c81-8beb-0063dc65c859",
+          "seq": 4,
+          "claimId": "c-1",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:03:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {
+            "assessorId": "u-assessor-1"
+          }
+        },
+        {
+          "id": "a8dff4d7-e785-421d-a284-22c710d0b648",
+          "seq": 5,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:03:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-03-02T08:03:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "1a6292dc-599f-427c-ae14-7c1821dd92a3",
+          "seq": 6,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:03:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-1 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "bc15a19a-ae93-4300-ba08-e4d72ebe8931",
+          "seq": 7,
+          "claimId": "c-1",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:04:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Assessor approved the claim for payment",
+          "transitionId": "approve",
+          "data": {
+            "assessmentReport": "Treatment and invoice match the policy coverage"
+          }
+        },
+        {
+          "id": "07dc6522-f60e-4644-8df8-dfc568116acd",
+          "seq": 8,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:04:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "approve",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-1 has been approved for 1500. Payment will be initiated shortly.",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "0a4d1d88-fe2a-4926-ab49-403898a5ed63",
+          "seq": 9,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:04:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect createPaymentRequest succeeded",
+          "transitionId": "approve",
+          "data": {
+            "name": "createPaymentRequest",
+            "result": {
+              "amount": 1500,
+              "paymentRequestId": "pr-0001"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "48428577-be29-4f96-acea-738fe89e21d6",
+          "seq": 10,
+          "claimId": "c-1",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:05:00.000Z",
+          "fromState": "APPROVED",
+          "toState": "PAYMENT_INITIATED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "Finance initiated payment",
+          "transitionId": "initiate_payment",
+          "data": {}
+        },
+        {
+          "id": "195bd90f-085f-4409-b64c-5d03417ed7fb",
+          "seq": 11,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:05:00.000Z",
+          "fromState": "APPROVED",
+          "toState": "PAYMENT_INITIATED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "Side effect triggerPaymentSystem succeeded",
+          "transitionId": "initiate_payment",
+          "data": {
+            "name": "triggerPaymentSystem",
+            "result": {
+              "initiatedAt": "2026-03-02T08:05:00.000Z",
+              "paymentRequestId": "pr-0001"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "d89b8996-5e2c-4796-b247-f06a67a9e6b6",
+          "seq": 12,
+          "claimId": "c-1",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:06:00.000Z",
+          "fromState": "PAYMENT_INITIATED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "PAY-2026-0001",
+          "transitionId": "confirm_payment",
+          "data": {
+            "paymentReference": "PAY-2026-0001"
+          }
+        },
+        {
+          "id": "ddf6516f-e031-4499-99e9-43e60b383132",
+          "seq": 13,
+          "claimId": "c-1",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:06:00.000Z",
+          "fromState": "PAYMENT_INITIATED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "confirm_payment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-1 has been paid. Payment reference: PAY-2026-0001",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "2. Rejection path",
+      "claimId": "c-2",
+      "finalStatus": "CLOSED",
+      "entries": 11,
+      "audit": [
+        {
+          "id": "fb534fff-831c-4c73-9cca-6399dcaf0d3c",
+          "seq": 1,
+          "claimId": "c-2",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-03-02T08:07:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 1500,
+            "memberId": "m-1001",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "7843690e-11c3-42cf-a803-95aac33689e0",
+          "seq": 2,
+          "claimId": "c-2",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:08:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Originals checked at the counter",
+          "transitionId": "verify_documents",
+          "notes": "Originals checked at the counter",
+          "data": {}
+        },
+        {
+          "id": "32ef80d8-3f19-4e7d-b0bd-c987bf2a0cbb",
+          "seq": 3,
+          "claimId": "c-2",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:08:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-2 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "a9b0b6ce-7f9d-4045-a949-305f4fff1408",
+          "seq": 4,
+          "claimId": "c-2",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:09:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {
+            "assessorId": "u-assessor-1"
+          }
+        },
+        {
+          "id": "20e01cdc-7db5-4213-90f7-bc3cf9c80147",
+          "seq": 5,
+          "claimId": "c-2",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:09:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-03-02T08:09:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "78fce209-9316-4ad3-9e45-05716ee9c197",
+          "seq": 6,
+          "claimId": "c-2",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:09:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-2 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "2252a2fd-ff6f-4e4f-bfa5-7b52155a4b94",
+          "seq": 7,
+          "claimId": "c-2",
+          "type": "TRANSITION",
+          "timestamp": "2026-03-02T08:10:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "REJECTED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Cosmetic procedures are excluded under policy section 4.2",
+          "transitionId": "reject",
+          "data": {
+            "rejectionReason": "Cosmetic procedures are excluded under policy section 4.2",
+            "assessmentReport": "Procedure is cosmetic"
+          }
+        },
+        {
+          "id": "36a39e66-2b08-4818-bb89-600b847b4a0c",
+          "seq": 8,
+          "claimId": "c-2",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-03-02T08:10:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "REJECTED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "reject",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-2 has been rejected: Cosmetic procedures are excluded under policy section 4.2. To appeal, contact our claims office with claim ID c-2 before the appeal period ends.",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "a960c86a-8964-4b79-8040-0a846758a25b",
+          "seq": 9,
+          "claimId": "c-2",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:12:00.000Z",
+          "fromState": "REJECTED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-system",
+            "role": "system"
+          },
+          "reason": "Rejected claim closed and archived",
+          "transitionId": "close_rejected",
+          "data": {}
+        },
+        {
+          "id": "45828f69-0b74-49df-a86c-c057d137fce7",
+          "seq": 10,
+          "claimId": "c-2",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:12:00.000Z",
+          "fromState": "REJECTED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-system",
+            "role": "system"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "close_rejected",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "archivedAt",
+              "value": "2026-04-01T08:12:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "3e24d372-d1b4-4871-a827-0784d382be8e",
+          "seq": 11,
+          "claimId": "c-2",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:12:00.000Z",
+          "fromState": "REJECTED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-system",
+            "role": "system"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "close_rejected",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-2 has been closed and archived",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "3. Request more info loop",
+      "claimId": "c-3",
+      "finalStatus": "CLOSED",
+      "entries": 20,
+      "audit": [
+        {
+          "id": "7fdf7690-10d5-47b1-9f07-78107b933c1b",
+          "seq": 1,
+          "claimId": "c-3",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-04-01T08:13:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 1500,
+            "memberId": "m-1001",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "3f6e90fb-0f42-4e4e-bc65-5d4282f91598",
+          "seq": 2,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:14:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Originals checked at the counter",
+          "transitionId": "verify_documents",
+          "notes": "Originals checked at the counter",
+          "data": {}
+        },
+        {
+          "id": "03b7decd-7b8e-43f5-b497-6258bc6c358f",
+          "seq": 3,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:14:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-3 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "9ca1554b-19f1-4dba-8420-34be726bafd0",
+          "seq": 4,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:15:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {
+            "assessorId": "u-assessor-1"
+          }
+        },
+        {
+          "id": "994144a4-8449-4310-aca9-96ee36ffbc82",
+          "seq": 5,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:15:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:15:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "be6f8062-bd96-4021-a6d6-dff9c9cf9588",
+          "seq": 6,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:15:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-3 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "dd46a06d-58e6-44dc-93ca-d21f0d4fcfa5",
+          "seq": 7,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:16:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Please send the itemised hospital bill",
+          "transitionId": "request_info",
+          "data": {
+            "missingInfoDescription": "Please send the itemised hospital bill"
+          }
+        },
+        {
+          "id": "29874734-d84d-4687-9c31-aefd7f3781f7",
+          "seq": 8,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:16:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "request_info",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-3: please provide additional information: Please send the itemised hospital bill",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "215ab951-15bf-4876-ac99-e134786e5cfd",
+          "seq": 9,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:17:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Document clerk recorded new information or documents from member",
+          "transitionId": "info_received",
+          "data": {
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof",
+              "itemised_bill"
+            ],
+            "infoResponse": "Itemised bill received by email"
+          }
+        },
+        {
+          "id": "9bb19051-b056-4ef5-9b58-78369d9b3eea",
+          "seq": 10,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:17:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "info_received",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": null
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "4396eab0-83ec-4301-b01c-44f620dbaaac",
+          "seq": 11,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:18:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {}
+        },
+        {
+          "id": "03c81b21-5139-42b6-9a69-4e7ba9079b4c",
+          "seq": 12,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:18:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:18:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "44a4426d-2645-4708-aaef-e12957de37ea",
+          "seq": 13,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:18:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-3 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "e586040e-9daf-4cbe-8b6e-18ee24cce79d",
+          "seq": 14,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:19:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Assessor approved the claim for payment",
+          "transitionId": "approve",
+          "data": {
+            "assessmentReport": "Treatment and invoice match the policy coverage"
+          }
+        },
+        {
+          "id": "75b509a4-f27d-4ec8-ac47-01d6fd68a7b9",
+          "seq": 15,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:19:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "approve",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-3 has been approved for 1500. Payment will be initiated shortly.",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "763e7fea-75cc-4d1f-8723-b9301e7bf28c",
+          "seq": 16,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:19:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect createPaymentRequest succeeded",
+          "transitionId": "approve",
+          "data": {
+            "name": "createPaymentRequest",
+            "result": {
+              "amount": 1500,
+              "paymentRequestId": "pr-0002"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "ef01f671-30c6-4718-8ce6-82a4adb251e0",
+          "seq": 17,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:20:00.000Z",
+          "fromState": "APPROVED",
+          "toState": "PAYMENT_INITIATED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "Finance initiated payment",
+          "transitionId": "initiate_payment",
+          "data": {}
+        },
+        {
+          "id": "372b48ef-7d71-4b0b-a842-0ef55deda113",
+          "seq": 18,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:20:00.000Z",
+          "fromState": "APPROVED",
+          "toState": "PAYMENT_INITIATED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "Side effect triggerPaymentSystem succeeded",
+          "transitionId": "initiate_payment",
+          "data": {
+            "name": "triggerPaymentSystem",
+            "result": {
+              "initiatedAt": "2026-04-01T08:20:00.000Z",
+              "paymentRequestId": "pr-0002"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "555ea620-c05c-4f26-940f-b18dee1e3bac",
+          "seq": 19,
+          "claimId": "c-3",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:21:00.000Z",
+          "fromState": "PAYMENT_INITIATED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "PAY-2026-0003",
+          "transitionId": "confirm_payment",
+          "data": {
+            "paymentReference": "PAY-2026-0003"
+          }
+        },
+        {
+          "id": "b77ba074-ff1e-467e-b05c-34c0677c1d45",
+          "seq": 20,
+          "claimId": "c-3",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:21:00.000Z",
+          "fromState": "PAYMENT_INITIATED",
+          "toState": "CLOSED",
+          "triggeredBy": {
+            "userId": "u-finance-1",
+            "role": "finance"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "confirm_payment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-3 has been paid. Payment reference: PAY-2026-0003",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "4. Invalid transition",
+      "claimId": "c-4",
+      "finalStatus": "SUBMITTED",
+      "entries": 3,
+      "audit": [
+        {
+          "id": "5061dffc-469e-4519-a4d2-694999cc0310",
+          "seq": 1,
+          "claimId": "c-4",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-04-01T08:22:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 800,
+            "memberId": "m-1004",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "6a4f298d-3585-4825-9b22-56991f675eae",
+          "seq": 2,
+          "claimId": "c-4",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:23:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Cannot transition SUBMITTED → APPROVED. Allowed from SUBMITTED: DOCUMENTS_VERIFIED (document_clerk)",
+          "data": {
+            "code": "INVALID_TRANSITION",
+            "errors": [
+              {
+                "message": "Cannot transition SUBMITTED → APPROVED. Allowed from SUBMITTED: DOCUMENTS_VERIFIED (document_clerk)"
+              }
+            ],
+            "payload": {
+              "assessmentReport": "Looks fine"
+            }
+          }
+        },
+        {
+          "id": "1341b89f-0876-4f8c-8431-493e68231d8d",
+          "seq": 3,
+          "claimId": "c-4",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:24:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "PAID",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Unknown state PAID. Known states: SUBMITTED, DOCUMENTS_VERIFIED, UNDER_ASSESSMENT, PENDING_INFO, APPROVED, REJECTED, PAYMENT_INITIATED, CLOSED. Allowed from SUBMITTED: DOCUMENTS_VERIFIED (document_clerk)",
+          "data": {
+            "code": "INVALID_TRANSITION",
+            "errors": [
+              {
+                "message": "Unknown state PAID. Known states: SUBMITTED, DOCUMENTS_VERIFIED, UNDER_ASSESSMENT, PENDING_INFO, APPROVED, REJECTED, PAYMENT_INITIATED, CLOSED. Allowed from SUBMITTED: DOCUMENTS_VERIFIED (document_clerk)"
+              }
+            ],
+            "payload": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "5. Unauthorized role",
+      "claimId": "c-5",
+      "finalStatus": "DOCUMENTS_VERIFIED",
+      "entries": 5,
+      "audit": [
+        {
+          "id": "842b31e4-357a-448c-aed4-580a64f33b9a",
+          "seq": 1,
+          "claimId": "c-5",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-04-01T08:25:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 2300,
+            "memberId": "m-1005",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "5d911df0-e871-4fe9-a6b9-2b1145fed946",
+          "seq": 2,
+          "claimId": "c-5",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:26:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Transition verify_documents requires role document_clerk; user u-assessor-1 has role assessor",
+          "transitionId": "verify_documents",
+          "data": {
+            "code": "UNAUTHORIZED_ROLE",
+            "errors": [
+              {
+                "message": "Transition verify_documents requires role document_clerk; user u-assessor-1 has role assessor"
+              }
+            ],
+            "payload": {}
+          }
+        },
+        {
+          "id": "94859fbd-d6e6-4731-bc02-a9295cdb1363",
+          "seq": 3,
+          "claimId": "c-5",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:27:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Document clerk confirmed all required documents are present",
+          "transitionId": "verify_documents",
+          "data": {}
+        },
+        {
+          "id": "2937e376-dfe3-464f-b6fd-2f6e6772d873",
+          "seq": 4,
+          "claimId": "c-5",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:27:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-5 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "181d31c5-7d8c-434c-bc05-39c4037b3e36",
+          "seq": 5,
+          "claimId": "c-5",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:28:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Transition start_assessment requires role team_lead; user u-clerk-1 has role document_clerk",
+          "transitionId": "start_assessment",
+          "data": {
+            "code": "UNAUTHORIZED_ROLE",
+            "errors": [
+              {
+                "message": "Transition start_assessment requires role team_lead; user u-clerk-1 has role document_clerk"
+              }
+            ],
+            "payload": {
+              "assessorId": "u-assessor-1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "6. Precondition failures",
+      "claimId": "c-6",
+      "finalStatus": "UNDER_ASSESSMENT",
+      "entries": 8,
+      "audit": [
+        {
+          "id": "5157ce9e-ec72-46e5-a8e8-06d3408292c6",
+          "seq": 1,
+          "claimId": "c-6",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-04-01T08:29:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 12000,
+            "memberId": "m-1006",
+            "documents": [
+              "claim_form"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "d2a4bc65-d48a-484e-91ea-d0dddb8716f6",
+          "seq": 2,
+          "claimId": "c-6",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:30:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Missing required documents: invoice, id_proof",
+          "transitionId": "verify_documents",
+          "data": {
+            "code": "PRECONDITION_FAILED",
+            "errors": [
+              {
+                "path": "",
+                "rule": "containsAll",
+                "field": "documents",
+                "message": "Missing required documents: invoice, id_proof"
+              }
+            ],
+            "payload": {}
+          }
+        },
+        {
+          "id": "fc05ff56-d6a4-4fc2-9d3e-e69a14d6807a",
+          "seq": 3,
+          "claimId": "c-6",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:31:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Document clerk confirmed all required documents are present",
+          "transitionId": "verify_documents",
+          "data": {
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ]
+          }
+        },
+        {
+          "id": "220c0110-2ff9-49f8-bf32-175450f45367",
+          "seq": 4,
+          "claimId": "c-6",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:31:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-6 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "306db022-f04e-42cb-b17a-2469bcffca71",
+          "seq": 5,
+          "claimId": "c-6",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:32:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {
+            "assessorId": "u-assessor-1"
+          }
+        },
+        {
+          "id": "c3dd546b-56ff-484e-b2cb-f18d885691b8",
+          "seq": 6,
+          "claimId": "c-6",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:32:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:32:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "7efe23b7-6124-4835-b9bf-c778b48bbead",
+          "seq": 7,
+          "claimId": "c-6",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:32:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-6 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "dd99ec84-9c33-4b7f-8b37-20929a74f61a",
+          "seq": 8,
+          "claimId": "c-6",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:33:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "amount 12000 exceeds policyLimit 10000",
+          "transitionId": "approve",
+          "data": {
+            "code": "PRECONDITION_FAILED",
+            "errors": [
+              {
+                "path": "all[1]",
+                "rule": "lte",
+                "field": "amount",
+                "message": "amount 12000 exceeds policyLimit 10000"
+              }
+            ],
+            "payload": {
+              "assessmentReport": "Treatment is covered"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "7. Cycle limit exceeded",
+      "claimId": "c-7",
+      "finalStatus": "UNDER_ASSESSMENT",
+      "entries": 28,
+      "audit": [
+        {
+          "id": "c2a559b7-7da4-43f0-b66a-52492130b4d0",
+          "seq": 1,
+          "claimId": "c-7",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-04-01T08:34:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 1500,
+            "memberId": "m-1001",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "97b576da-535d-456d-98ee-0e5c11f748b4",
+          "seq": 2,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:35:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Originals checked at the counter",
+          "transitionId": "verify_documents",
+          "notes": "Originals checked at the counter",
+          "data": {}
+        },
+        {
+          "id": "1642cad7-a3ac-47fe-aa6b-3fa4001a5230",
+          "seq": 3,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:35:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-7 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "ca5f7a6e-1e30-4864-acd8-94e1b21e791b",
+          "seq": 4,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:36:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {
+            "assessorId": "u-assessor-1"
+          }
+        },
+        {
+          "id": "b407b6bb-57d6-465c-9f34-eeaa0b4fb272",
+          "seq": 5,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:36:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:36:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "ff1529ef-32e8-4dd8-8573-4d09e109841e",
+          "seq": 6,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:36:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-7 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "8cc3abbc-ec5b-400f-8170-7c2f85272a7b",
+          "seq": 7,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:37:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Round 1: please send the discharge summary",
+          "transitionId": "request_info",
+          "data": {
+            "missingInfoDescription": "Round 1: please send the discharge summary"
+          }
+        },
+        {
+          "id": "2b795faa-a8cf-4037-be91-182281627fca",
+          "seq": 8,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:37:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "request_info",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-7: please provide additional information: Round 1: please send the discharge summary",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "c52337c1-2785-4fb3-b539-143620c6a1a7",
+          "seq": 9,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:38:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Document clerk recorded new information or documents from member",
+          "transitionId": "info_received",
+          "data": {
+            "infoResponse": "Round 1: discharge summary received"
+          }
+        },
+        {
+          "id": "7728e1ba-0b17-4f59-9fb2-8bd5eb8bc934",
+          "seq": 10,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:38:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "info_received",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": null
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "79e3d533-2976-4622-8e59-320a660a8c80",
+          "seq": 11,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:39:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {}
+        },
+        {
+          "id": "abf69a2d-cbe6-48a4-9be5-96b744e9f787",
+          "seq": 12,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:39:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:39:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "73ea38d6-246b-44e8-be3b-641d956c8d31",
+          "seq": 13,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:39:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-7 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "593a2547-c1dd-410d-bb69-0b7c2a963637",
+          "seq": 14,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:40:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Round 2: please send the discharge summary",
+          "transitionId": "request_info",
+          "data": {
+            "missingInfoDescription": "Round 2: please send the discharge summary"
+          }
+        },
+        {
+          "id": "6c453c2e-b155-4bf8-b3ad-924b4bb9889d",
+          "seq": 15,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:40:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "request_info",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-7: please provide additional information: Round 2: please send the discharge summary",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "cc3a8e70-a2af-4986-a629-d71268d8de9c",
+          "seq": 16,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:41:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Document clerk recorded new information or documents from member",
+          "transitionId": "info_received",
+          "data": {
+            "infoResponse": "Round 2: discharge summary received"
+          }
+        },
+        {
+          "id": "ba2bb34b-175c-44c9-9b3d-bf3aa7d3c236",
+          "seq": 17,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:41:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "info_received",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": null
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "7d0c7c8a-8b93-4709-9718-09a4b42e9e67",
+          "seq": 18,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:42:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {}
+        },
+        {
+          "id": "c920978a-b92c-4eb4-8cc6-f8bd4b47346e",
+          "seq": 19,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:42:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:42:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "427c5ee1-ef51-4528-8021-6a2c1a071776",
+          "seq": 20,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:42:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-7 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "8f49c836-8bd1-4d52-a444-151c760af9f2",
+          "seq": 21,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:43:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Round 3: please send the discharge summary",
+          "transitionId": "request_info",
+          "data": {
+            "missingInfoDescription": "Round 3: please send the discharge summary"
+          }
+        },
+        {
+          "id": "ba4b623f-59c5-4d07-b50a-d40eb6d57f1b",
+          "seq": 22,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:43:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "request_info",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-7: please provide additional information: Round 3: please send the discharge summary",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "8dcb9fe5-e08c-4d3a-8a10-16f5f3a918bb",
+          "seq": 23,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:44:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Document clerk recorded new information or documents from member",
+          "transitionId": "info_received",
+          "data": {
+            "infoResponse": "Round 3: discharge summary received"
+          }
+        },
+        {
+          "id": "a39d9173-baf0-4f34-824e-56528c366f73",
+          "seq": 24,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:44:00.000Z",
+          "fromState": "PENDING_INFO",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "info_received",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": null
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "0c5a197c-d8b4-4c04-8635-cbd77c02aadf",
+          "seq": 25,
+          "claimId": "c-7",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:45:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {}
+        },
+        {
+          "id": "0d2c6ab3-27b8-457c-808a-e13cb59e5f4b",
+          "seq": 26,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:45:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:45:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "c06dff63-5a45-4222-8383-c81a2b5e718c",
+          "seq": 27,
+          "claimId": "c-7",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:45:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-7 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "fc29278e-3e53-4af7-ad19-b4f605fd3bef",
+          "seq": 28,
+          "claimId": "c-7",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:46:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "PENDING_INFO",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Maximum information requests exceeded — escalate to team lead",
+          "transitionId": "request_info",
+          "data": {
+            "code": "CYCLE_LIMIT_EXCEEDED",
+            "errors": [
+              {
+                "message": "Maximum information requests exceeded — escalate to team lead"
+              }
+            ],
+            "payload": {
+              "missingInfoDescription": "Round 4: please send the specialist referral"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "8. Concurrent requests on the same claim",
+      "claimId": "c-8",
+      "finalStatus": "APPROVED",
+      "entries": 10,
+      "audit": [
+        {
+          "id": "4700bd45-5276-4cd8-85d5-c81dc07213db",
+          "seq": 1,
+          "claimId": "c-8",
+          "type": "CLAIM_CREATED",
+          "timestamp": "2026-04-01T08:47:00.000Z",
+          "fromState": null,
+          "toState": "SUBMITTED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Claim created",
+          "data": {
+            "amount": 1500,
+            "memberId": "m-1001",
+            "documents": [
+              "claim_form",
+              "invoice",
+              "id_proof"
+            ],
+            "policyLimit": 10000
+          }
+        },
+        {
+          "id": "9d1ad1e5-b3fa-4fdb-b847-2fc6f925631b",
+          "seq": 2,
+          "claimId": "c-8",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:48:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Originals checked at the counter",
+          "transitionId": "verify_documents",
+          "notes": "Originals checked at the counter",
+          "data": {}
+        },
+        {
+          "id": "54c3c15d-c0ec-41c3-a109-2880746f1526",
+          "seq": 3,
+          "claimId": "c-8",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:48:00.000Z",
+          "fromState": "SUBMITTED",
+          "toState": "DOCUMENTS_VERIFIED",
+          "triggeredBy": {
+            "userId": "u-clerk-1",
+            "role": "document_clerk"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "verify_documents",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "role:assessor",
+              "message": "Claim c-8 has verified documents and is ready for assessment",
+              "recipients": [
+                "u-assessor-1",
+                "u-assessor-2"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "b1cf356f-9749-430b-91ff-91ab242922c1",
+          "seq": 4,
+          "claimId": "c-8",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:49:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Team lead assigned an assessor and started the assessment",
+          "transitionId": "start_assessment",
+          "data": {
+            "assessorId": "u-assessor-1"
+          }
+        },
+        {
+          "id": "31562ad8-0c6d-4a64-a93d-eade3d5d72bf",
+          "seq": 5,
+          "claimId": "c-8",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:49:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect setField succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "setField",
+            "result": {
+              "field": "assessmentStartedAt",
+              "value": "2026-04-01T08:49:00.000Z"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "912a76ed-a914-4530-9d61-f4e88bfd0866",
+          "seq": 6,
+          "claimId": "c-8",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:49:00.000Z",
+          "fromState": "DOCUMENTS_VERIFIED",
+          "toState": "UNDER_ASSESSMENT",
+          "triggeredBy": {
+            "userId": "u-lead-1",
+            "role": "team_lead"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "start_assessment",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "user:assessorId",
+              "message": "Claim c-8 has been assigned to you for assessment",
+              "recipients": [
+                "u-assessor-1"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "8ea744ea-b53c-404c-9ec4-c9b5652376da",
+          "seq": 7,
+          "claimId": "c-8",
+          "type": "TRANSITION",
+          "timestamp": "2026-04-01T08:50:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Assessor approved the claim for payment",
+          "transitionId": "approve",
+          "data": {
+            "assessmentReport": "Covered"
+          }
+        },
+        {
+          "id": "24566494-41f3-4665-b91a-b5e1a2555618",
+          "seq": 8,
+          "claimId": "c-8",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:50:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect notify succeeded",
+          "transitionId": "approve",
+          "data": {
+            "name": "notify",
+            "result": {
+              "to": "member",
+              "message": "Claim c-8 has been approved for 1500. Payment will be initiated shortly.",
+              "recipients": [
+                "m-1001"
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "5dc68e4f-63b9-4ac5-8a50-de79c2b29af6",
+          "seq": 9,
+          "claimId": "c-8",
+          "type": "SIDE_EFFECT",
+          "timestamp": "2026-04-01T08:50:00.000Z",
+          "fromState": "UNDER_ASSESSMENT",
+          "toState": "APPROVED",
+          "triggeredBy": {
+            "userId": "u-assessor-1",
+            "role": "assessor"
+          },
+          "reason": "Side effect createPaymentRequest succeeded",
+          "transitionId": "approve",
+          "data": {
+            "name": "createPaymentRequest",
+            "result": {
+              "amount": 1500,
+              "paymentRequestId": "pr-0003"
+            },
+            "status": "ok"
+          }
+        },
+        {
+          "id": "ef86ebfd-cf06-4fce-9dbd-9b4d5e25d812",
+          "seq": 10,
+          "claimId": "c-8",
+          "type": "TRANSITION_REJECTED",
+          "timestamp": "2026-04-01T08:50:00.000Z",
+          "fromState": "APPROVED",
+          "toState": "REJECTED",
+          "triggeredBy": {
+            "userId": "u-assessor-2",
+            "role": "assessor"
+          },
+          "reason": "Cannot transition APPROVED → REJECTED. Allowed from APPROVED: PAYMENT_INITIATED (finance)",
+          "data": {
+            "code": "INVALID_TRANSITION",
+            "errors": [
+              {
+                "message": "Cannot transition APPROVED → REJECTED. Allowed from APPROVED: PAYMENT_INITIATED (finance)"
+              }
+            ],
+            "payload": {
+              "rejectionReason": "Pre-existing condition",
+              "assessmentReport": "Not covered"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

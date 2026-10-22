@@ -61,6 +61,28 @@ importers:
         specifier: ~6.0.2
         version: 6.0.3
 
+  apps/scenarios:
+    dependencies:
+      '@claims/engine':
+        specifier: workspace:^
+        version: link:../../packages/engine
+      '@claims/store-postgres':
+        specifier: workspace:^
+        version: link:../../packages/store-postgres
+      pg:
+        specifier: ^8.13.1
+        version: 8.23.1
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+
   apps/web:
     dependencies:
       react:

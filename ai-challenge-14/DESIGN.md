@@ -39,6 +39,7 @@ ai-challenge-14/
 │   └── src/
 ├── apps/api/        # NestJS: controller, guard định danh, map lỗi → HTTP
 ├── apps/web/        # React UI (Vite, proxy /api → api)
+├── apps/scenarios/  # `pnpm scenarios`: chạy scenario mục 11 trên claims_scenarios, ghi ra docs/
 └── docs/            # kết quả scenario, audit output, config diff
 ```
 
