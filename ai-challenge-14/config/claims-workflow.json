@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "initialState": "SUBMITTED",
+  "roles": ["document_clerk", "team_lead", "assessor", "finance", "system"],
+  "settings": {
+    "requiredDocuments": ["claim_form", "invoice", "id_proof"],
+    "appealPeriodDays": 30
+  },
+  "states": [
+    { "id": "SUBMITTED", "description": "Claim received, awaiting document verification" },
+    { "id": "DOCUMENTS_VERIFIED", "description": "All required documents confirmed present and valid" },
+    { "id": "UNDER_ASSESSMENT", "description": "Assessor is reviewing the claim" },
+    { "id": "PENDING_INFO", "description": "Additional information requested from member" },
+    { "id": "APPROVED", "description": "Claim approved for payment" },
+    { "id": "REJECTED", "description": "Claim denied" },
+    { "id": "PAYMENT_INITIATED", "description": "Payment processing started" },
+    { "id": "CLOSED", "description": "Claim lifecycle complete", "terminal": true }
+  ],
+  "actions": {
+    "createClaim": { "roles": ["document_clerk"], "inputs": ["documents"] },
+    "acknowledge": { "roles": ["document_clerk"], "allowedStates": ["REJECTED"] },
+    "runSystemTasks": { "roles": ["system"] }
+  },
+  "transitions": [
+    {
+      "id": "verify_documents",
+      "from": "SUBMITTED",
+      "to": "DOCUMENTS_VERIFIED",
+      "description": "Document clerk confirmed all required documents are present",
+      "roles": ["document_clerk"],
+      "inputs": ["documents"],
+      "preconditions": {
+        "rule": "containsAll",
+        "field": "documents",
+        "ref": "$settings.requiredDocuments"
+      },
+      "sideEffects": [
+        {
+          "name": "notify",
+          "params": {
+            "to": "role:assessor",
+            "template": "Claim {{id}} has verified documents and is ready for assessment"
+          }
+        }
+      ]
+    },
+    {
+      "id": "start_assessment",
+      "from": "DOCUMENTS_VERIFIED",
+      "to": "UNDER_ASSESSMENT",
+      "description": "Team lead assigned an assessor and started the assessment",
+      "roles": ["team_lead"],
+      "inputs": ["assessorId"],
+      "preconditions": {
+        "rule": "userHasRole",
+        "field": "assessorId",
+        "role": "assessor"
+      },
+      "sideEffects": [
+        { "name": "setField", "params": { "field": "assessmentStartedAt", "value": "$now" } },
+        {
+          "name": "notify",
+          "params": {
+            "to": "user:assessorId",
+            "template": "Claim {{id}} has been assigned to you for assessment"
+          }
+        }
+      ]
+    },
+    {
+      "id": "approve",
+      "from": "UNDER_ASSESSMENT",
+      "to": "APPROVED",
+      "description": "Assessor approved the claim for payment",
+      "roles": ["assessor"],
+      "inputs": ["assessmentReport"],
+      "preconditions": {
+        "all": [
+          { "rule": "notEmpty", "field": "assessmentReport" },
+          { "rule": "lte", "field": "amount", "ref": "policyLimit" }
+        ]
+      },
+      "sideEffects": [
+        {
+          "name": "notify",
+          "params": {
+            "to": "member",
+            "template": "Claim {{id}} has been approved for {{amount}}. Payment will be initiated shortly."
+          }
+        },
+        { "name": "createPaymentRequest" }
+      ]
+    },
+    {
+      "id": "reject",
+      "from": "UNDER_ASSESSMENT",
+      "to": "REJECTED",
+      "description": "Assessor rejected the claim",
+      "roles": ["assessor"],
+      "inputs": ["assessmentReport", "rejectionReason"],
+      "reasonField": "rejectionReason",
+      "preconditions": {
+        "all": [
+          { "rule": "notEmpty", "field": "assessmentReport" },
+          { "rule": "providedInRequest", "field": "rejectionReason" }
+        ]
+      },
+      "sideEffects": [
+        {
+          "name": "notify",
+          "params": {
+            "to": "member",
+            "template": "Claim {{id}} has been rejected: {{rejectionReason}}. To appeal, contact our claims office with claim ID {{id}} before the appeal period ends."
+          }
+        }
+      ]
+    },
+    {
+      "id": "request_info",
+      "from": "UNDER_ASSESSMENT",
+      "to": "PENDING_INFO",
+      "description": "Assessor requested additional information from member",
+      "roles": ["assessor"],
+      "inputs": ["missingInfoDescription"],
+      "reasonField": "missingInfoDescription",
+      "preconditions": {
+        "rule": "providedInRequest",
+        "field": "missingInfoDescription"
+      },
+      "sideEffects": [
+        {
+          "name": "notify",
+          "params": {
+            "to": "member",
+            "template": "Claim {{id}}: please provide additional information: {{missingInfoDescription}}"
+          }
+        }
+      ],
+      "cycleLimit": {
+        "max": 3,
+        "message": "Maximum information requests exceeded — escalate to team lead"
+      }
+    },
+    {
+      "id": "info_received",
+      "from": "PENDING_INFO",
+      "to": "DOCUMENTS_VERIFIED",
+      "description": "Document clerk recorded new information or documents from member",
+      "roles": ["document_clerk"],
+      "inputs": ["infoResponse", "documents"],
+      "preconditions": {
+        "all": [
+          {
+            "any": [
+              { "rule": "providedInRequest", "field": "infoResponse" },
+              { "rule": "providedInRequest", "field": "documents" }
+            ]
+          },
+          { "rule": "containsAll", "field": "documents", "ref": "$settings.requiredDocuments" }
+        ]
+      },
+      "sideEffects": [
+        { "name": "setField", "params": { "field": "assessmentStartedAt", "value": null } }
+      ]
+    },
+    {
+      "id": "initiate_payment",
+      "from": "APPROVED",
+      "to": "PAYMENT_INITIATED",
+      "description": "Finance initiated payment",
+      "roles": ["finance"],
+      "inputs": [],
+      "preconditions": {
+        "rule": "notEmpty",
+        "field": "paymentRequest.id",
+        "message": "Payment request has not been created"
+      },
+      "sideEffects": [{ "name": "triggerPaymentSystem" }]
+    },
+    {
+      "id": "confirm_payment",
+      "from": "PAYMENT_INITIATED",
+      "to": "CLOSED",
+      "description": "Finance confirmed payment",
+      "roles": ["finance"],
+      "inputs": ["paymentReference"],
+      "reasonField": "paymentReference",
+      "preconditions": {
+        "rule": "providedInRequest",
+        "field": "paymentReference"
+      },
+      "sideEffects": [
+        {
+          "name": "notify",
+          "params": {
+            "to": "member",
+            "template": "Claim {{id}} has been paid. Payment reference: {{paymentReference}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "close_rejected",
+      "from": "REJECTED",
+      "to": "CLOSED",
+      "description": "Rejected claim closed and archived",
+      "roles": ["system"],
+      "inputs": [],
+      "preconditions": {
+        "any": [
+          { "rule": "daysElapsed", "field": "stateEnteredAt", "days": "$settings.appealPeriodDays" },
+          { "rule": "eq", "field": "memberAcknowledged", "value": true }
+        ]
+      },
+      "sideEffects": [
+        { "name": "setField", "params": { "field": "archivedAt", "value": "$now" } },
+        {
+          "name": "notify",
+          "params": {
+            "to": "member",
+            "template": "Claim {{id}} has been closed and archived"
+          }
+        }
+      ]
+    }
+  ]
+}

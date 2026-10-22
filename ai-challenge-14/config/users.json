@@ -1,0 +1,10 @@
+{
+  "users": [
+    { "id": "u-clerk-1", "name": "Alice (Clerk)", "role": "document_clerk" },
+    { "id": "u-lead-1", "name": "Bob (Team Lead)", "role": "team_lead" },
+    { "id": "u-assessor-1", "name": "Carol (Assessor)", "role": "assessor" },
+    { "id": "u-assessor-2", "name": "Dave (Assessor)", "role": "assessor" },
+    { "id": "u-finance-1", "name": "Erin (Finance)", "role": "finance" },
+    { "id": "u-system", "name": "System", "role": "system" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "claims-workflow-orchestrator",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build:engine": "pnpm --filter @claims/engine build",
+    "test": "pnpm --filter @claims/engine test",
+    "dev": "pnpm build:engine && pnpm --parallel --filter @claims/engine --filter @claims/api --filter @claims/web dev"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2"
+  }
+}
