@@ -16,8 +16,13 @@ export const ERROR_CODES = [
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
+/** Registry symbol, shared by every copy of this module loaded in the process. */
+const WORKFLOW_ERROR_BRAND = Symbol.for('@claims/engine/WorkflowError');
+
 /** Expected business error. The API maps code to an HTTP status; anything else is a 500. */
 export class WorkflowError extends Error {
+  readonly [WORKFLOW_ERROR_BRAND] = true;
+
   constructor(
     readonly code: ErrorCode,
     message: string,
@@ -32,8 +37,10 @@ export class WorkflowError extends Error {
   }
 }
 
+/** Checks the brand instead of instanceof, so errors thrown by another copy of the engine still match. */
 export function isWorkflowError(error: unknown, code?: ErrorCode): error is WorkflowError {
-  return error instanceof WorkflowError && (code === undefined || error.code === code);
+  if (typeof error !== 'object' || error === null || !(WORKFLOW_ERROR_BRAND in error)) return false;
+  return code === undefined || (error as WorkflowError).code === code;
 }
 
 export function claimNotFound(claimId: string): WorkflowError {

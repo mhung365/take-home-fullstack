@@ -1,10 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
-import { ENGINE_NAME } from '@claims/engine';
+import { Public } from './identity/public.decorator';
 
+@Public()
 @Controller('health')
 export class HealthController {
   @Get()
   check() {
-    return { status: 'ok', engine: ENGINE_NAME };
+    return { status: 'ok' };
   }
 }
