@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "tsc -p tsconfig.json && node dist/main.js"
+    "start": "tsc -p tsconfig.json && node dist/main.js",
+    "config-diff": "tsc -p tsconfig.json && node dist/config-diff.js"
   },
   "dependencies": {
     "@claims/engine": "workspace:^",

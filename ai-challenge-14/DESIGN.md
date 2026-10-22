@@ -20,27 +20,38 @@ Xây dựng workflow engine dạng state machine điều phối vòng đời cla
 
 ```
 ai-challenge-14/
+├── BRIEF.md, DESIGN.md
+├── package.json                        # script gốc: dev, test, test:integration, db:migrate, scenarios, config-diff
+├── pnpm-workspace.yaml, tsconfig.base.json
 ├── docker-compose.yml                  # chỉ postgres
-├── docker/postgres/init/               # script tạo database test/scenarios
-├── .env.example                        # DATABASE_URL, DEMO_MODE, ...
+├── docker/postgres/init/               # script tạo database claims, claims_test, claims_scenarios
+├── .env.example                        # DATABASE_URL, DB_LOCK_TIMEOUT_MS, DB_POOL_MAX, DEMO_MODE, PORT
 ├── config/
 │   ├── claims-workflow.json            # state machine chính
-│   ├── users.json                      # user mock (userId → role)
-│   └── examples/                       # demo thay đổi chỉ bằng config
-├── packages/engine/src/                # TypeScript thuần, không phụ thuộc NestJS, không I/O
-│   ├── config/      # load + validate config
-│   ├── rules/       # bộ đánh giá precondition
-│   ├── effects/     # registry side effect
-│   ├── store/       # interface WorkflowStore + bản in-memory (dùng cho unit test)
-│   ├── clock.ts     # Clock inject được
-│   └── engine.ts    # WorkflowEngine
+│   └── users.json                      # user mock (userId → role)
+├── examples/                           # demo thay đổi chỉ bằng config
+│   └── with-escalation.json
+├── packages/engine/                    # TypeScript thuần, không phụ thuộc NestJS, không I/O
+│   ├── src/
+│   │   ├── config/        # schema Zod, load + validate config
+│   │   ├── rules/         # bộ đánh giá precondition
+│   │   ├── side-effects/  # registry side effect, render template
+│   │   ├── store/         # interface WorkflowStore + bản in-memory (mutex theo claim)
+│   │   ├── model/         # kiểu Claim, AuditEntry
+│   │   ├── engine/        # WorkflowEngine (workflow-engine.ts), transition, action, system task, transition khả dụng
+│   │   ├── clock.ts       # Clock inject được, FakeClock
+│   │   ├── errors.ts      # WorkflowError và mã lỗi
+│   │   ├── util.ts
+│   │   └── index.ts
+│   └── test/              # case 1–25 (in-memory), contract test WorkflowStore dùng chung
 ├── packages/store-postgres/            # WorkflowStore trên PostgreSQL (driver `pg`)
-│   ├── migrations/  # file SQL đánh số, chạy bằng `pnpm db:migrate`
-│   └── src/
-├── apps/api/        # NestJS: controller, guard định danh, map lỗi → HTTP
-├── apps/web/        # React UI (Vite, proxy /api → api)
-├── apps/scenarios/  # `pnpm scenarios`: chạy scenario mục 11 trên claims_scenarios, ghi ra docs/
-└── docs/            # kết quả scenario, audit output, config diff
+│   ├── migrations/        # file SQL đánh số, chạy bằng `pnpm db:migrate`
+│   ├── src/               # store.ts, migrate.ts, env.ts, cli/migrate.ts
+│   └── test/              # contract test, case 26–32 trên claims_test
+├── apps/api/              # NestJS: controller, guard định danh, map lỗi → HTTP
+├── apps/web/              # React UI (Vite, proxy /api → api)
+├── apps/scenarios/        # `pnpm scenarios` (mục 11, trên claims_scenarios) và `pnpm config-diff`, ghi ra docs/
+└── docs/                  # scenario-results.md, audit-output.json, config-diff.md
 ```
 
 Nguyên tắc:

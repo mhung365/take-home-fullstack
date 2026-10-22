@@ -9,6 +9,7 @@
     "test:integration": "pnpm build:engine && pnpm --filter @claims/store-postgres test:integration",
     "db:migrate": "pnpm build:engine && pnpm --filter @claims/store-postgres db:migrate",
     "scenarios": "pnpm build:packages && pnpm --filter @claims/scenarios start",
+    "config-diff": "pnpm build:packages && pnpm --filter @claims/scenarios config-diff",
     "dev": "pnpm build:packages && pnpm --parallel --filter @claims/engine --filter @claims/store-postgres --filter @claims/api --filter @claims/web dev"
   },
   "devDependencies": {

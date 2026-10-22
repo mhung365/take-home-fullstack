@@ -26,7 +26,7 @@ export interface RunInfo {
   clockEnd: string;
 }
 
-const mark = (passed: boolean) => (passed ? '✅' : '❌');
+export const mark = (passed: boolean) => (passed ? '✅' : '❌');
 
 /** Keeps a value on one table row. */
 const cell = (value: unknown) =>
@@ -53,7 +53,23 @@ function auditDetail(entry: AuditEntry): string {
   }
 }
 
-function auditTable(audit: AuditEntry[]): string[] {
+export function stepsTable(steps: StepRecord[]): string[] {
+  return [
+    '| # | fake clock | user (role) | request | expected | actual | |',
+    '|---|---|---|---|---|---|---|',
+    ...steps.map(
+      (s) =>
+        `| ${s.n} | ${s.at} | ${s.actor} | ${code(cell(s.action))} | ${cell(s.expected)} | ${cell(s.actual)} | ${mark(s.passed)} |`,
+    ),
+  ];
+}
+
+export const checkList = (checks: CheckRecord[]): string[] =>
+  checks.map((c) => `- ${mark(c.passed)} ${c.label}${c.detail ? ` — ${c.detail}` : ''}`);
+
+export const logBlock = (logs: string[]): string[] => (logs.length === 0 ? ['_None._'] : ['```text', ...logs, '```']);
+
+export function auditTable(audit: AuditEntry[]): string[] {
   const lines = [
     '| seq | timestamp | type | from → to | transition | triggered by | reason | details |',
     '|---|---|---|---|---|---|---|---|',
@@ -106,19 +122,9 @@ export function renderMarkdown(info: RunInfo, results: ScenarioResult[], readBac
     if (r.claimId) out.push(`Claim: \`${r.claimId}\``, '');
     if (r.error) out.push(`**Scenario aborted:** ${r.error}`, '');
 
-    out.push('### Steps', '', '| # | fake clock | user (role) | request | expected | actual | |', '|---|---|---|---|---|---|---|');
-    for (const s of r.steps) {
-      out.push(
-        `| ${s.n} | ${s.at} | ${s.actor} | ${code(cell(s.action))} | ${cell(s.expected)} | ${cell(s.actual)} | ${mark(s.passed)} |`,
-      );
-    }
-
-    out.push('', '### Checks on data read back from PostgreSQL', '');
-    for (const c of r.checks) out.push(`- ${mark(c.passed)} ${c.label}${c.detail ? ` — ${c.detail}` : ''}`);
-
-    out.push('', '### Side effect console output', '');
-    if (r.logs.length === 0) out.push('_None._');
-    else out.push('```text', ...r.logs, '```');
+    out.push('### Steps', '', ...stepsTable(r.steps));
+    out.push('', '### Checks on data read back from PostgreSQL', '', ...checkList(r.checks));
+    out.push('', '### Side effect console output', '', ...logBlock(r.logs));
 
     if (rb) {
       out.push('', '### Audit trail', '', ...auditTable(rb.audit));
