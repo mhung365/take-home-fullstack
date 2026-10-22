@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { ConfigValidationError, loadConfig, validateConfig, type ConfigIssue } from '../src/config';
+import { defaultSideEffects } from '../src/side-effects';
 
 const configDir = resolve(__dirname, '../../../config');
 const readJson = (file: string) => JSON.parse(readFileSync(resolve(configDir, file), 'utf8'));
@@ -109,6 +111,13 @@ describe('config loader', () => {
         source: 'workflow',
         path: 'transitions[3].reasonField',
         message: 'Transition reject reasonField rejectionReason is not in inputs (assessmentReport)',
+      },
+      // The rejection notice template reads rejectionReason, which no input provides anymore.
+      {
+        source: 'workflow',
+        path: 'transitions[3].sideEffects[0].params.template',
+        message:
+          'Template variable {{rejectionReason}} is not a core field, an input, or a field written by an action or side effect',
       },
     ]);
   });
@@ -218,9 +227,9 @@ describe('config loader', () => {
       loadConfig(raw);
     } catch (e) {
       const err = e as ConfigValidationError;
-      // confirm_payment loses its input: reasonField + providedInRequest both fail
-      expect(err.errors).toHaveLength(5);
-      expect(err.message).toContain('Invalid workflow config (5 errors)');
+      // confirm_payment loses its input: reasonField, providedInRequest and the notify template all fail
+      expect(err.errors).toHaveLength(6);
+      expect(err.message).toContain('Invalid workflow config (6 errors)');
       expect(err.message).toContain('[users] users[0].role');
     }
   });
@@ -280,6 +289,141 @@ describe('config loader', () => {
         message: expect.stringContaining('Rule userHasRole uses unknown role assesor'),
       }),
     ]);
+  });
+
+  describe('side effects', () => {
+    const sideEffect = (wf: any, id: string, index: number) => transition(wf, id).sideEffects[index];
+
+    it('rejects side effects that are not registered', () => {
+      const raw = realConfig();
+      sideEffect(raw.workflow, 'approve', 1).name = 'createPayment';
+
+      expect(errorsOf(raw)).toEqual([
+        {
+          source: 'workflow',
+          path: 'transitions[2].sideEffects[1].name',
+          message:
+            'Unknown side effect createPayment. Known side effects: notify, setField, createPaymentRequest, triggerPaymentSystem',
+        },
+      ]);
+    });
+
+    it('rejects params that do not match the handler schema, with paths into params', () => {
+      const raw = realConfig();
+      delete sideEffect(raw.workflow, 'verify_documents', 0).params.template;
+      sideEffect(raw.workflow, 'approve', 0).params.to = 'everyone';
+      sideEffect(raw.workflow, 'start_assessment', 0).params.typo = 1;
+      sideEffect(raw.workflow, 'approve', 1).params = { amount: 1 };
+      delete sideEffect(raw.workflow, 'info_received', 0).params.value;
+
+      expect(errorsOf(raw).map((e) => e.path)).toEqual([
+        'transitions[0].sideEffects[0].params.template',
+        'transitions[1].sideEffects[0].params',
+        'transitions[2].sideEffects[0].params.to',
+        'transitions[2].sideEffects[1].params',
+        'transitions[5].sideEffects[0].params.value',
+      ]);
+    });
+
+    it('rejects template variables that are not core fields, inputs or side effect outputs', () => {
+      const raw = realConfig();
+      sideEffect(raw.workflow, 'approve', 0).params.template = 'Claim {{id}} approved for {{amout}} ({{ payment.id }})';
+
+      expect(errorsOf(raw)).toEqual([
+        {
+          source: 'workflow',
+          path: 'transitions[2].sideEffects[0].params.template',
+          message: 'Template variable {{amout}} is not a core field, an input, or a field written by an action or side effect',
+        },
+        {
+          source: 'workflow',
+          path: 'transitions[2].sideEffects[0].params.template',
+          message:
+            'Template variable {{payment.id}} is not a core field, an input, or a field written by an action or side effect',
+        },
+      ]);
+    });
+
+    it('accepts template variables from any transition input, createClaim inputs, side effect and acknowledge outputs', () => {
+      const raw = realConfig();
+      sideEffect(raw.workflow, 'verify_documents', 0).params.template =
+        '{{id}} {{status}} {{documents}} {{rejectionReason}} {{paymentRequest.id}} {{paymentInitiatedAt}} ' +
+        '{{archivedAt}} {{memberAcknowledgedAt}} {{memberAcknowledgedBy}}';
+
+      expect(validateConfig(raw)).toMatchObject({ ok: true });
+    });
+
+    it('checks notify recipients: role must exist, user field must be known', () => {
+      const raw = realConfig();
+      sideEffect(raw.workflow, 'verify_documents', 0).params.to = 'role:asessor';
+      sideEffect(raw.workflow, 'start_assessment', 1).params.to = 'user:assessor';
+
+      expect(errorsOf(raw)).toEqual([
+        {
+          source: 'workflow',
+          path: 'transitions[0].sideEffects[0].params.to',
+          message: 'Notify recipient role:asessor uses unknown role asessor. Known roles: document_clerk, team_lead, assessor, finance, system',
+        },
+        {
+          source: 'workflow',
+          path: 'transitions[1].sideEffects[1].params.to',
+          message:
+            'Notify recipient user:assessor reads assessor, which is not a core field, an input, or a field written by an action or side effect',
+        },
+      ]);
+    });
+
+    it('rejects setField on a core field and $-values other than $now', () => {
+      const raw = realConfig();
+      sideEffect(raw.workflow, 'start_assessment', 0).params.field = 'status';
+      sideEffect(raw.workflow, 'close_rejected', 0).params.value = '$today';
+
+      expect(errorsOf(raw)).toEqual([
+        {
+          source: 'workflow',
+          path: 'transitions[1].sideEffects[0].params.field',
+          message: expect.stringContaining('Side effect setField field status collides with core claim field'),
+        },
+        {
+          source: 'workflow',
+          path: 'transitions[8].sideEffects[0].params.value',
+          message: 'Unknown special value $today; the only one supported is $now',
+        },
+      ]);
+    });
+
+    it('a field written by setField in one transition can be used in templates elsewhere', () => {
+      const raw = realConfig();
+      sideEffect(raw.workflow, 'close_rejected', 0).params.field = 'closedAt';
+      sideEffect(raw.workflow, 'verify_documents', 0).params.template = 'Closed at {{closedAt}}';
+
+      expect(validateConfig(raw)).toMatchObject({ ok: true });
+    });
+
+    it('reports every side effect error together with other config errors', () => {
+      const raw = realConfig();
+      raw.workflow.initialState = 'NEW';
+      sideEffect(raw.workflow, 'approve', 1).name = 'pay';
+      sideEffect(raw.workflow, 'reject', 0).params.template = '{{reason}}';
+      sideEffect(raw.workflow, 'info_received', 0).params.field = 'amount';
+
+      expect(errorsOf(raw)).toHaveLength(4);
+    });
+
+    it('uses the registry passed in options', () => {
+      const raw = realConfig();
+      transition(raw.workflow, 'approve').sideEffects.push({ name: 'audit_log', params: { level: 'info' } });
+
+      expect(errorsOf(raw)[0].message).toContain('Unknown side effect audit_log');
+
+      const sideEffects = new Map(defaultSideEffects);
+      sideEffects.set('audit_log', {
+        name: 'audit_log',
+        params: z.strictObject({ level: z.enum(['info', 'warn']) }),
+        run: () => ({}),
+      });
+      expect(validateConfig(raw, { sideEffects })).toMatchObject({ ok: true });
+    });
   });
 
   it('warns about states unreachable from initialState without failing', () => {

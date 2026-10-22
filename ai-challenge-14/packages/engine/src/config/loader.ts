@@ -2,6 +2,8 @@ import type { z } from 'zod';
 import { defaultRules } from '../rules/builtins';
 import type { RuleRegistry } from '../rules/types';
 import { SETTINGS_PREFIX, isSettingsRef } from '../rules/values';
+import { defaultSideEffects } from '../side-effects/builtins';
+import type { SideEffectHandler, SideEffectRegistry, SideEffectValidationContext } from '../side-effects/types';
 import {
   type Condition,
   type RuleCondition,
@@ -22,6 +24,16 @@ export const CORE_FIELDS = [
   'createdBy',
   'version',
 ] as const;
+
+/**
+ * data fields written by the acknowledge action (DESIGN 6.2). The action must write through
+ * these names, so templates checked against them at load stay valid.
+ */
+export const ACKNOWLEDGE_FIELDS = {
+  acknowledged: 'memberAcknowledged',
+  at: 'memberAcknowledgedAt',
+  by: 'memberAcknowledgedBy',
+} as const;
 
 export type ConfigSource = 'workflow' | 'users';
 
@@ -64,11 +76,13 @@ export function formatIssue(issue: ConfigIssue): string {
 
 export interface ValidateOptions {
   rules?: RuleRegistry;
+  sideEffects?: SideEffectRegistry;
 }
 
 /** Validates already-parsed JSON. Never throws; reports every error found. */
 export function validateConfig(raw: RawConfig, options: ValidateOptions = {}): ConfigValidationResult {
   const rules = options.rules ?? defaultRules;
+  const sideEffects = options.sideEffects ?? defaultSideEffects;
   const errors: ConfigIssue[] = [];
   const warnings: ConfigIssue[] = [];
 
@@ -78,7 +92,10 @@ export function validateConfig(raw: RawConfig, options: ValidateOptions = {}): C
   if (!workflow.success) errors.push(...zodIssues('workflow', workflow.error));
   if (!users.success) errors.push(...zodIssues('users', users.error));
 
-  if (workflow.success) checkWorkflow(workflow.data, rules, errors, warnings);
+  if (workflow.success) {
+    checkWorkflow(workflow.data, rules, errors, warnings);
+    checkSideEffects(workflow.data, sideEffects, errors);
+  }
   if (users.success) checkUsers(users.data, workflow.success ? workflow.data : undefined, errors);
 
   if (errors.length > 0 || !workflow.success || !users.success) {
@@ -214,6 +231,53 @@ function checkWorkflow(wf: WorkflowConfig, rules: RuleRegistry, errors: ConfigIs
         warnings.push({ source: 'workflow', path: `states[${i}]`, message: `State ${s.id} is not reachable from ${wf.initialState}` });
       }
     });
+  }
+}
+
+/**
+ * Two passes: params of every side effect are parsed first, so a template may read a field
+ * written by a side effect of any transition, declared before or after it.
+ */
+function checkSideEffects(wf: WorkflowConfig, registry: SideEffectRegistry, errors: ConfigIssue[]): void {
+  const error = (path: string, message: string) => errors.push({ source: 'workflow', path, message });
+
+  const known = new Set<string>([
+    ...CORE_FIELDS,
+    ...Object.values(ACKNOWLEDGE_FIELDS),
+    ...wf.actions.createClaim.inputs,
+    ...wf.transitions.flatMap((t) => t.inputs),
+  ]);
+  const parsed: { path: string; handler: SideEffectHandler<unknown>; params: unknown }[] = [];
+
+  wf.transitions.forEach((t, i) => {
+    t.sideEffects.forEach((sideEffect, j) => {
+      const path = `transitions[${i}].sideEffects[${j}]`;
+      const handler = registry.get(sideEffect.name);
+      if (!handler) {
+        error(`${path}.name`, `Unknown side effect ${sideEffect.name}. Known side effects: ${[...registry.keys()].join(', ')}`);
+        return;
+      }
+
+      const params = handler.params.safeParse(sideEffect.params ?? {});
+      if (!params.success) {
+        for (const issue of params.error.issues) {
+          error(issue.path.length > 0 ? `${path}.params.${formatPath(issue.path)}` : `${path}.params`, issue.message);
+        }
+        return;
+      }
+
+      parsed.push({ path, handler, params: params.data });
+      for (const field of handler.writes?.(params.data) ?? []) known.add(field);
+    });
+  });
+
+  const ctx: SideEffectValidationContext = {
+    workflow: wf,
+    coreFields: CORE_FIELDS,
+    isKnownField: (path) => known.has(path.split('.')[0]),
+  };
+  for (const { path, handler, params } of parsed) {
+    for (const issue of handler.validate?.(params, ctx) ?? []) error(`${path}.params.${issue.key}`, issue.message);
   }
 }
 

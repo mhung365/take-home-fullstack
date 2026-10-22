@@ -228,7 +228,9 @@ Registry gồm 2 handler tổng quát (dùng cho hầu hết trường hợp, ch
 - `role:<role>`: gửi tới mọi user mang role đó trong `users.json`, ví dụ `role:team_lead`.
 - `user:<field>`: gửi tới userId lưu trong field của claim, ví dụ `user:assessorId`.
 
-`notify.params.template` dùng cú pháp `{{field}}`, đọc từ cùng "view" với rule (field lõi + `data`), ví dụ `Claim {{id}} rejected: {{rejectionReason}}`. Biến không tồn tại bị báo lỗi khi load config nếu tên không có trong field lõi, `inputs` của bất kỳ transition nào, hoặc field do side effect ghi ra.
+`notify.params.template` dùng cú pháp `{{field}}`, đọc từ cùng "view" với rule (field lõi + `data`), ví dụ `Claim {{id}} rejected: {{rejectionReason}}`. Biến không tồn tại bị báo lỗi khi load config nếu tên không có trong field lõi, `inputs` của bất kỳ transition nào hoặc của `createClaim`, field do side effect ghi ra, hoặc field do `acknowledge` ghi ra (`memberAcknowledged`, `memberAcknowledgedAt`, `memberAcknowledgedBy`).
+
+Biến hợp lệ nhưng lúc chạy không có giá trị (thiếu, `null` hoặc chuỗi rỗng) được render thành rỗng; thông báo vẫn được gửi và entry vẫn `status: ok`, nhưng `result.missingVariables` liệt kê các biến đó. Làm vậy để member vẫn nhận được thông báo, đồng thời audit cho thấy thông báo nào bị thiếu nội dung.
 
 `setField.params.value` nhận giá trị JSON cố định, `null`, hoặc `"$now"` (thời điểm hiện tại từ Clock). `setField` chỉ ghi vào `data`, không ghi được field lõi.
 
@@ -613,6 +615,7 @@ API và UI không có test tự động; được kiểm tra thủ công trên U
 - "Assessment report complete" được hiểu là có nội dung báo cáo (`notEmpty`).
 - "Payment confirmed" được hiểu là finance gửi `paymentReference` trong request.
 - Giá trị rỗng được coi là chưa có: `undefined`, `null`, chuỗi rỗng hoặc chỉ có khoảng trắng, mảng rỗng, object rỗng. Áp dụng cho cả `notEmpty` và `providedInRequest`, nên gửi `rejectionReason: ""` bị coi như không gửi. `0` và `false` là giá trị hợp lệ.
+- `setField.params.value` dạng chuỗi bắt đầu bằng `$` chỉ chấp nhận `$now`; chuỗi `$` khác (ví dụ `$today`) bị từ chối khi load để bắt lỗi gõ nhầm. Hệ quả: config không ghi được chuỗi literal bắt đầu bằng `$` qua `setField`.
 - Danh sách giấy tờ bắt buộc dùng chung cho mọi claim.
 - `policyLimit` do clerk nhập khi tạo claim và là field lõi, không thay đổi được sau khi tạo. Thực tế hạn mức phải lấy từ hệ thống quản lý hợp đồng bảo hiểm theo `policyId` của member, để người tạo claim không tự đặt được hạn mức; hướng mở rộng là thay bằng tra cứu policy mà engine không đổi.
 - "Chỉ sửa config" bao gồm: thêm state, transition, role, user, field dữ liệu mới, thông báo mới (qua `notify`) và ghi field (qua `setField`). Loại rule mới hoặc tích hợp hệ thống ngoài mới (như `createPaymentRequest`) vẫn cần thêm handler vào registry.

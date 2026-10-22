@@ -1,5 +1,6 @@
 import { claimBusy, claimNotFound } from '../errors';
 import type { AuditEntry, Claim, NewAuditEntry, NewClaim, StateId } from '../model/types';
+import { deepFreeze } from '../util';
 import { KeyedMutex, type Release } from './keyed-mutex';
 import type { ClaimTx, WorkflowStore } from './types';
 
@@ -9,14 +10,6 @@ export interface InMemoryStoreOptions {
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
-
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const child of Object.values(value)) deepFreeze(child);
-    Object.freeze(value);
-  }
-  return value;
-}
 
 export class InMemoryWorkflowStore implements WorkflowStore {
   /** Insertion order is creation order; set() on an existing key keeps its position. */

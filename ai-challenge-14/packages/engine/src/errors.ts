@@ -1,3 +1,5 @@
+import type { RuleFailure } from './rules/types';
+
 export const ERROR_CODES = [
   'CLAIM_NOT_FOUND',
   'UNKNOWN_USER',
@@ -44,4 +46,40 @@ export function claimBusy(claimId: string): WorkflowError {
     `Claim ${claimId} is being modified by another request; retry later`,
     { claimId },
   );
+}
+
+export function unknownUser(userId: string): WorkflowError {
+  return new WorkflowError('UNKNOWN_USER', `Unknown user ${userId}`, { userId });
+}
+
+export function staleClaim(claimId: string, version: number, expectedVersion: number): WorkflowError {
+  return new WorkflowError(
+    'STALE_CLAIM',
+    `Claim ${claimId} was modified (version ${version}, expected ${expectedVersion}); reload and retry`,
+    { claimId, version, expectedVersion },
+  );
+}
+
+/** subject is e.g. "Transition approve" or "Action createClaim". */
+export function unauthorizedRole(
+  subject: string,
+  requiredRoles: readonly string[],
+  user: { id: string; role: string },
+): WorkflowError {
+  return new WorkflowError(
+    'UNAUTHORIZED_ROLE',
+    `${subject} requires role ${requiredRoles.join(' or ')}; user ${user.id} has role ${user.role}`,
+    { requiredRoles: [...requiredRoles], userId: user.id, role: user.role },
+  );
+}
+
+export function preconditionFailed(transitionId: string, failures: readonly RuleFailure[]): WorkflowError {
+  return new WorkflowError('PRECONDITION_FAILED', failures.map((f) => f.message).join('; '), {
+    transitionId,
+    failures: [...failures],
+  });
+}
+
+export function cycleLimitExceeded(transitionId: string, max: number, message: string): WorkflowError {
+  return new WorkflowError('CYCLE_LIMIT_EXCEEDED', message, { transitionId, max });
 }
