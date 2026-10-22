@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import type { z } from 'zod';
 import { OffsetClock } from './clock/offset-clock';
 import { advanceClockBody } from './validation/schemas';
@@ -9,10 +9,19 @@ import { ZodPipe } from './validation/zod.pipe';
 export class DevController {
   constructor(private readonly clock: OffsetClock) {}
 
+  @Get('clock')
+  get() {
+    return this.state();
+  }
+
   @Post('clock/advance')
   @HttpCode(HttpStatus.OK)
   advance(@Body(new ZodPipe(advanceClockBody)) body: z.output<typeof advanceClockBody>) {
     this.clock.advanceDays(body.days);
+    return this.state();
+  }
+
+  private state() {
     return { now: this.clock.now().toISOString(), offsetMs: this.clock.offset };
   }
 }

@@ -266,6 +266,74 @@ table.claims tr.selected {
   word-break: break-word;
 }
 
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.row.align-center {
+  align-items: center;
+}
+.nowrap {
+  white-space: nowrap;
+}
+
+.clock {
+  margin-top: 12px;
+}
+.clock .row {
+  margin-top: 4px;
+}
+input.days {
+  width: 80px;
+}
+.tasks-result ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.tasks-result li {
+  margin-bottom: 4px;
+}
+
+.audit-panel {
+  grid-column: 1 / -1;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+table.audit {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.audit th,
+table.audit td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border);
+}
+table.audit pre {
+  margin: 4px 0 0;
+  max-width: 320px;
+  overflow-x: auto;
+  font-size: 11px;
+}
+tr.audit-effect {
+  background: #f9fafb;
+  color: #4b5563;
+}
+tr.audit-rejected {
+  background: #fef2f2;
+  color: #991b1b;
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+tr.audit-failed {
+  background: #fff7ed;
+  color: #9a3412;
+  box-shadow: inset 3px 0 0 #ea580c;
+}
+
 .boot {
   max-width: 480px;
   margin: 80px auto;

@@ -510,6 +510,7 @@ Mọi request (trừ `GET /config`, `GET /users`) cần header `X-User-Id`.
 | POST | `/claims/:id/acknowledge` | `{ notes?, expectedVersion? }` |
 | GET | `/claims/:id/audit` | audit trail của claim |
 | POST | `/system/run-tasks` | chạy tác vụ của role system |
+| GET | `/dev/clock` | thời điểm hiện tại của clock giả — chỉ có khi `DEMO_MODE=true`; UI dùng route này để biết có hiện nút "Advance clock" hay không |
 | POST | `/dev/clock/advance` | `{ days }` — chỉ bật khi `DEMO_MODE=true`, để minh họa hết hạn kháng cáo |
 | GET | `/health` | kiểm tra API và kết nối DB |
 

@@ -5,6 +5,7 @@ import { ClaimDetail } from './components/ClaimDetail';
 import { ClaimList } from './components/ClaimList';
 import { CreateClaimForm } from './components/CreateClaimForm';
 import { Notice } from './components/Notice';
+import { SystemPanel } from './components/SystemPanel';
 import { buildFieldSpecs } from './fields';
 
 const USER_KEY = 'claims.userId';
@@ -71,6 +72,7 @@ function Workspace({ config, users, user, onSelectUser }: WorkspaceProps) {
   const [listError, setListError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [detailRefresh, setDetailRefresh] = useState(0);
 
   const loadClaims = useCallback(async () => {
     try {
@@ -105,36 +107,47 @@ function Workspace({ config, users, user, onSelectUser }: WorkspaceProps) {
       </header>
 
       <main className="layout">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Claims</h2>
-            <button className="secondary" onClick={() => void loadClaims()}>
-              Refresh
-            </button>
-            <button
-              onClick={() => setCreating(true)}
-              disabled={!canCreate || creating}
-              title={canCreate ? undefined : `Requires role ${config.actions.createClaim.roles.join(' or ')}`}
-            >
-              New claim
-            </button>
-          </div>
-          {creating && (
-            <CreateClaimForm
-              config={config}
-              users={users}
-              specs={specs}
-              onCancel={() => setCreating(false)}
-              onCreated={(claim) => {
-                setCreating(false);
-                setSelectedId(claim.id);
-                void loadClaims();
-              }}
-            />
-          )}
-          {listError && <Notice notice={{ kind: 'error', text: listError }} />}
-          <ClaimList claims={claims} selectedId={selectedId} onSelect={setSelectedId} />
-        </section>
+        <div className="column">
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Claims</h2>
+              <button className="secondary" onClick={() => void loadClaims()}>
+                Refresh
+              </button>
+              <button
+                onClick={() => setCreating(true)}
+                disabled={!canCreate || creating}
+                title={canCreate ? undefined : `Requires role ${config.actions.createClaim.roles.join(' or ')}`}
+              >
+                New claim
+              </button>
+            </div>
+            {creating && (
+              <CreateClaimForm
+                config={config}
+                users={users}
+                specs={specs}
+                onCancel={() => setCreating(false)}
+                onCreated={(claim) => {
+                  setCreating(false);
+                  setSelectedId(claim.id);
+                  void loadClaims();
+                }}
+              />
+            )}
+            {listError && <Notice notice={{ kind: 'error', text: listError }} />}
+            <ClaimList claims={claims} selectedId={selectedId} onSelect={setSelectedId} />
+          </section>
+
+          <SystemPanel
+            config={config}
+            user={user}
+            onChanged={() => {
+              void loadClaims();
+              setDetailRefresh((n) => n + 1);
+            }}
+          />
+        </div>
 
         {selectedId ? (
           <ClaimDetail
@@ -144,6 +157,7 @@ function Workspace({ config, users, user, onSelectUser }: WorkspaceProps) {
             users={users}
             config={config}
             specs={specs}
+            refreshKey={detailRefresh}
             onChanged={() => void loadClaims()}
           />
         ) : (

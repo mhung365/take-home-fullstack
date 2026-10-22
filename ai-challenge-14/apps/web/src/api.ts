@@ -1,13 +1,20 @@
 import type {
   AcknowledgeResult,
+  AuditEntry,
   AvailableTransitions,
   Claim,
   CreateClaimInput,
+  SystemTasksResult,
   TransitionRequest,
   TransitionResult,
   UsersConfig,
   WorkflowConfig,
 } from '@claims/engine';
+
+export interface ClockState {
+  now: string;
+  offsetMs: number;
+}
 
 /** Error body of the API (DESIGN 7), plus NETWORK_ERROR / HTTP_<status> when the body isn't one. */
 export class ApiError extends Error {
@@ -91,4 +98,9 @@ export const api = {
     request<TransitionResult>('POST', `${claimPath(id)}/transitions`, body),
   acknowledge: (id: string, body: { notes?: string; expectedVersion?: number }) =>
     request<AcknowledgeResult>('POST', `${claimPath(id)}/acknowledge`, body),
+  getAudit: (id: string) => request<AuditEntry[]>('GET', `${claimPath(id)}/audit`),
+  runSystemTasks: () => request<SystemTasksResult>('POST', '/system/run-tasks'),
+  /** 404 when the API runs without DEMO_MODE. */
+  getClock: () => request<ClockState>('GET', '/dev/clock'),
+  advanceClock: (days: number) => request<ClockState>('POST', '/dev/clock/advance', { days }),
 };
