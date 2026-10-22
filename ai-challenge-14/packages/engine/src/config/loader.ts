@@ -1,4 +1,7 @@
 import type { z } from 'zod';
+import { defaultRules } from '../rules/builtins';
+import type { RuleRegistry } from '../rules/types';
+import { SETTINGS_PREFIX, isSettingsRef } from '../rules/values';
 import {
   type Condition,
   type RuleCondition,
@@ -59,8 +62,13 @@ export function formatIssue(issue: ConfigIssue): string {
   return `[${issue.source}] ${issue.path || '(root)'}: ${issue.message}`;
 }
 
+export interface ValidateOptions {
+  rules?: RuleRegistry;
+}
+
 /** Validates already-parsed JSON. Never throws; reports every error found. */
-export function validateConfig(raw: RawConfig): ConfigValidationResult {
+export function validateConfig(raw: RawConfig, options: ValidateOptions = {}): ConfigValidationResult {
+  const rules = options.rules ?? defaultRules;
   const errors: ConfigIssue[] = [];
   const warnings: ConfigIssue[] = [];
 
@@ -70,7 +78,7 @@ export function validateConfig(raw: RawConfig): ConfigValidationResult {
   if (!workflow.success) errors.push(...zodIssues('workflow', workflow.error));
   if (!users.success) errors.push(...zodIssues('users', users.error));
 
-  if (workflow.success) checkWorkflow(workflow.data, errors, warnings);
+  if (workflow.success) checkWorkflow(workflow.data, rules, errors, warnings);
   if (users.success) checkUsers(users.data, workflow.success ? workflow.data : undefined, errors);
 
   if (errors.length > 0 || !workflow.success || !users.success) {
@@ -80,8 +88,8 @@ export function validateConfig(raw: RawConfig): ConfigValidationResult {
 }
 
 /** Like validateConfig, but throws ConfigValidationError listing all errors. */
-export function loadConfig(raw: RawConfig): LoadedConfig & { warnings: ConfigIssue[] } {
-  const result = validateConfig(raw);
+export function loadConfig(raw: RawConfig, options: ValidateOptions = {}): LoadedConfig & { warnings: ConfigIssue[] } {
+  const result = validateConfig(raw, options);
   if (!result.ok) throw new ConfigValidationError(result.errors, result.warnings);
   return { ...result.config, warnings: result.warnings };
 }
@@ -107,7 +115,7 @@ function duplicates(values: readonly string[]): string[] {
   return [...dupes];
 }
 
-function checkWorkflow(wf: WorkflowConfig, errors: ConfigIssue[], warnings: ConfigIssue[]): void {
+function checkWorkflow(wf: WorkflowConfig, rules: RuleRegistry, errors: ConfigIssue[], warnings: ConfigIssue[]): void {
   const error = (path: string, message: string) => errors.push({ source: 'workflow', path, message });
 
   const stateIds = wf.states.map((s) => s.id);
@@ -178,6 +186,7 @@ function checkWorkflow(wf: WorkflowConfig, errors: ConfigIssue[], warnings: Conf
 
     if (t.preconditions) {
       walkRules(t.preconditions, `${path}.preconditions`, (rule, rulePath) => {
+        checkRule(wf, rules, rule, rulePath, error);
         if (rule.rule === 'providedInRequest' && typeof rule.field === 'string' && !inputs.has(rule.field)) {
           error(
             `${rulePath}.field`,
@@ -206,6 +215,40 @@ function checkWorkflow(wf: WorkflowConfig, errors: ConfigIssue[], warnings: Conf
       }
     });
   }
+}
+
+const RULE_BASE_KEYS = new Set(['rule', 'field', 'message']);
+
+function checkRule(
+  wf: WorkflowConfig,
+  rules: RuleRegistry,
+  rule: RuleCondition,
+  path: string,
+  error: (path: string, message: string) => void,
+): void {
+  const def = rules.get(rule.rule);
+  if (!def) {
+    error(`${path}.rule`, `Unknown rule ${rule.rule}. Known rules: ${[...rules.keys()].join(', ')}`);
+    return;
+  }
+
+  const params = def.params.safeParse(rule);
+  if (!params.success) {
+    for (const issue of params.error.issues) {
+      error(issue.path.length > 0 ? `${path}.${formatPath(issue.path)}` : path, issue.message);
+    }
+    return;
+  }
+
+  const knownSettings = Object.keys(wf.settings);
+  for (const [key, value] of Object.entries(rule)) {
+    if (RULE_BASE_KEYS.has(key) || !isSettingsRef(value)) continue;
+    if (!Object.hasOwn(wf.settings, value.slice(SETTINGS_PREFIX.length))) {
+      error(`${path}.${key}`, `Unknown setting ${value}. Known settings: ${knownSettings.join(', ') || 'none'}`);
+    }
+  }
+
+  for (const issue of def.validate?.(params.data, wf) ?? []) error(`${path}.${issue.key}`, issue.message);
 }
 
 // The schema parses any node with an all/any/not key as a group, so these casts are safe.

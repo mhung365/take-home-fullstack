@@ -176,8 +176,8 @@ User mock khai báo trong `config/users.json`, được engine load cùng `claim
 | `containsAll` | mảng chứa đủ các giá trị (`values` hoặc `ref`) | `Missing required documents: invoice, id_proof` |
 | `lte` | field ≤ giá trị field khác (`ref`) | `amount 12000 exceeds policyLimit 10000` |
 | `eq` | field bằng giá trị cố định | `memberAcknowledged must be true` |
-| `daysElapsed` | đã qua ít nhất N ngày kể từ mốc thời gian | `Appeal period not expired: 12 of 30 days elapsed` |
-| `userHasRole` | field là userId của user có role chỉ định | `assessorId u-finance-1 is not an assessor` |
+| `daysElapsed` | đã qua ít nhất N ngày kể từ mốc thời gian | `Only 12 of 30 days elapsed since stateEnteredAt` |
+| `userHasRole` | field là userId của user có role chỉ định | `assessorId u-finance-1 has role finance, expected assessor` |
 
 - Tham chiếu settings bằng `"$settings.<key>"`, ví dụ `"ref": "$settings.requiredDocuments"`.
 - Rule đọc field theo tên phẳng trên một "view" gộp field lõi và `data` của claim, ví dụ `amount` (lõi), `documents` (data). Tên field trong `data` không được trùng field lõi (validate khi load), nên không có nhập nhằng.
@@ -438,6 +438,15 @@ Hệ quả của việc không rollback khi side effect lỗi: nếu `createPaym
 
 `getAvailableTransitions(claimId, userId?)` trả về mọi transition đi ra từ state hiện tại, mỗi cái gồm: `to`, `roles`, `inputs`, `allowedForCurrentUser`, kết quả đánh giá từng precondition trên dữ liệu hiện tại, và số lần còn lại nếu có `cycleLimit`. UI dùng để hiển thị nút và lý do bị khóa. Hàm này chỉ đọc, không khóa; kết quả kèm `version` của claim để UI gửi lại làm `expectedVersion`.
 
+Precondition được đánh giá ở chế độ `preview`, trên claim hiện tại và payload rỗng:
+
+- Rule đọc field thuộc `inputs` của transition mà chưa thỏa thì **pass kèm `requiresInput: true`**, giữ nguyên message lỗi (ví dụ `assessmentReport is required`). User sẽ điền field đó trong form, nên nút không bị khóa; UI dùng cờ này để đánh dấu field bắt buộc và hiển thị message làm gợi ý. Field dạng dot path xét theo đoạn đầu (`paymentRequest.id` → `paymentRequest`).
+- Rule đã thỏa thì pass bình thường, không có `requiresInput`.
+- Field lõi và field trong `data` không thuộc `inputs` vẫn được đánh giá bình thường, nên lỗi thật vẫn khóa nút. Ví dụ `approve` với `amount` vượt `policyLimit`, hoặc `initiate_payment` khi chưa có `paymentRequest`.
+- `providedInRequest` luôn rơi vào trường hợp đầu, vì payload preview rỗng.
+
+Khi thực thi transition (6.1 bước 6), engine dùng chế độ `execute`: bỏ qua `inputs`, mọi rule chưa thỏa đều là lỗi. Vì vậy preview chỉ là gợi ý cho UI; request thật vẫn bị kiểm tra đầy đủ.
+
 ### 6.4 Xử lý request đồng thời
 
 **Vấn đề cần chặn** khi hai request cùng chạm một claim:
@@ -603,6 +612,7 @@ API và UI không có test tự động; được kiểm tra thủ công trên U
 - Acknowledge của member do `document_clerk` ghi nhận.
 - "Assessment report complete" được hiểu là có nội dung báo cáo (`notEmpty`).
 - "Payment confirmed" được hiểu là finance gửi `paymentReference` trong request.
+- Giá trị rỗng được coi là chưa có: `undefined`, `null`, chuỗi rỗng hoặc chỉ có khoảng trắng, mảng rỗng, object rỗng. Áp dụng cho cả `notEmpty` và `providedInRequest`, nên gửi `rejectionReason: ""` bị coi như không gửi. `0` và `false` là giá trị hợp lệ.
 - Danh sách giấy tờ bắt buộc dùng chung cho mọi claim.
 - `policyLimit` do clerk nhập khi tạo claim và là field lõi, không thay đổi được sau khi tạo. Thực tế hạn mức phải lấy từ hệ thống quản lý hợp đồng bảo hiểm theo `policyId` của member, để người tạo claim không tự đặt được hạn mức; hướng mở rộng là thay bằng tra cứu policy mà engine không đổi.
 - "Chỉ sửa config" bao gồm: thêm state, transition, role, user, field dữ liệu mới, thông báo mới (qua `notify`) và ghi field (qua `setField`). Loại rule mới hoặc tích hợp hệ thống ngoài mới (như `createPaymentRequest`) vẫn cần thêm handler vào registry.

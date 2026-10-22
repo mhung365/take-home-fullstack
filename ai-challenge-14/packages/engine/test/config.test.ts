@@ -225,6 +225,63 @@ describe('config loader', () => {
     }
   });
 
+  it('rejects rules that are not registered', () => {
+    const raw = realConfig();
+    transition(raw.workflow, 'approve').preconditions.all[0].rule = 'isFilled';
+
+    expect(errorsOf(raw)).toEqual([
+      {
+        source: 'workflow',
+        path: 'transitions[2].preconditions.all[0].rule',
+        message:
+          'Unknown rule isFilled. Known rules: notEmpty, providedInRequest, containsAll, lte, eq, daysElapsed, userHasRole',
+      },
+    ]);
+  });
+
+  it('rejects rule params that do not match the rule schema', () => {
+    const raw = realConfig();
+    delete transition(raw.workflow, 'approve').preconditions.all[0].field;
+    delete transition(raw.workflow, 'verify_documents').preconditions.ref;
+    transition(raw.workflow, 'info_received').preconditions.all[1].values = ['invoice'];
+
+    const errors = errorsOf(raw);
+
+    expect(errors.map((e) => e.path)).toEqual(
+      expect.arrayContaining([
+        'transitions[0].preconditions',
+        'transitions[2].preconditions.all[0].field',
+        'transitions[5].preconditions.all[1]',
+      ]),
+    );
+    expect(errors.filter((e) => e.message.includes('exactly one of values or ref'))).toHaveLength(2);
+  });
+
+  it('rejects $settings references to unknown keys', () => {
+    const raw = realConfig();
+    transition(raw.workflow, 'verify_documents').preconditions.ref = '$settings.requiredDocs';
+
+    expect(errorsOf(raw)).toEqual([
+      {
+        source: 'workflow',
+        path: 'transitions[0].preconditions.ref',
+        message: 'Unknown setting $settings.requiredDocs. Known settings: requiredDocuments, appealPeriodDays',
+      },
+    ]);
+  });
+
+  it('rejects userHasRole with an unknown role', () => {
+    const raw = realConfig();
+    transition(raw.workflow, 'start_assessment').preconditions.role = 'assesor';
+
+    expect(errorsOf(raw)).toEqual([
+      expect.objectContaining({
+        path: 'transitions[1].preconditions.role',
+        message: expect.stringContaining('Rule userHasRole uses unknown role assesor'),
+      }),
+    ]);
+  });
+
   it('warns about states unreachable from initialState without failing', () => {
     const raw = realConfig();
     raw.workflow.states.push({ id: 'ARCHIVED', description: 'Never reached' });
