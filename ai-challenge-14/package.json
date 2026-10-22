@@ -4,10 +4,11 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build:engine": "pnpm --filter @claims/engine build",
+    "build:packages": "pnpm --filter @claims/engine --filter @claims/store-postgres build",
     "test": "pnpm --filter @claims/engine test",
     "test:integration": "pnpm build:engine && pnpm --filter @claims/store-postgres test:integration",
     "db:migrate": "pnpm build:engine && pnpm --filter @claims/store-postgres db:migrate",
-    "dev": "pnpm build:engine && pnpm --parallel --filter @claims/engine --filter @claims/api --filter @claims/web dev"
+    "dev": "pnpm build:packages && pnpm --parallel --filter @claims/engine --filter @claims/store-postgres --filter @claims/api --filter @claims/web dev"
   },
   "devDependencies": {
     "typescript": "~6.0.2"

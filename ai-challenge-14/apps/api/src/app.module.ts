@@ -1,20 +1,24 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { InMemoryWorkflowStore, WorkflowEngine, type LoadedConfig, type WorkflowStore } from '@claims/engine';
+import { WorkflowEngine, type LoadedConfig, type WorkflowStore } from '@claims/engine';
+import { PostgresWorkflowStore, type PostgresEnv } from '@claims/store-postgres';
+import type { Pool } from 'pg';
 import { ClaimsController } from './claims.controller';
 import { OffsetClock } from './clock/offset-clock';
 import { ConfigController } from './config.controller';
+import { PgPoolLifecycle, pgPoolProvider } from './database';
 import { DevController } from './dev.controller';
 import { ErrorFilter } from './errors/error.filter';
 import { HealthController } from './health.controller';
 import { UserGuard } from './identity/user.guard';
 import { SystemController } from './system.controller';
-import { WORKFLOW_CONFIG, WORKFLOW_STORE } from './tokens';
+import { PG_POOL, WORKFLOW_CONFIG, WORKFLOW_STORE } from './tokens';
 import { UsersController } from './users.controller';
 
 export interface AppOptions {
   /** Registers /dev/clock/advance. */
   demoMode: boolean;
+  database: PostgresEnv;
 }
 
 @Module({})
@@ -33,7 +37,14 @@ export class AppModule {
       ],
       providers: [
         { provide: WORKFLOW_CONFIG, useValue: config },
-        { provide: WORKFLOW_STORE, useFactory: (): WorkflowStore => new InMemoryWorkflowStore() },
+        pgPoolProvider(options.database),
+        PgPoolLifecycle,
+        {
+          provide: WORKFLOW_STORE,
+          inject: [PG_POOL],
+          useFactory: (pool: Pool): WorkflowStore =>
+            new PostgresWorkflowStore(pool, { lockTimeoutMs: options.database.lockTimeoutMs }),
+        },
         OffsetClock,
         {
           provide: WorkflowEngine,

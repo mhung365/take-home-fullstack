@@ -7,7 +7,7 @@ import { WorkflowError, isWorkflowError, type ErrorCode } from '../../src/errors
 import type { Claim, NewClaim } from '../../src/model';
 import type { RuleRegistry } from '../../src/rules';
 import { createBuiltinSideEffects } from '../../src/side-effects';
-import { InMemoryWorkflowStore } from '../../src/store';
+import { InMemoryWorkflowStore, type WorkflowStore } from '../../src/store';
 
 const configDir = resolve(__dirname, '../../../../config');
 export const readJson = (file: string) => JSON.parse(readFileSync(resolve(configDir, file), 'utf8'));
@@ -25,13 +25,16 @@ export const SYSTEM = 'u-system';
 export interface SetupOptions {
   /** Defaults to the real config. */
   config?: LoadedConfig;
+  /** For the default in-memory store. */
   lockTimeoutMs?: number;
   rules?: RuleRegistry;
+  /** Defaults to an empty in-memory store; the Postgres integration tests pass theirs. */
+  store?: WorkflowStore;
 }
 
 /** Engine on the real config with an in-memory store, a fake clock at T0 and built-in side effects logging to `lines`. */
 export function setup(options: SetupOptions = {}) {
-  const store = new InMemoryWorkflowStore({ lockTimeoutMs: options.lockTimeoutMs ?? 500 });
+  const store = options.store ?? new InMemoryWorkflowStore({ lockTimeoutMs: options.lockTimeoutMs ?? 500 });
   const clock = new FakeClock(T0);
   const lines: string[] = [];
   const engine = new WorkflowEngine({

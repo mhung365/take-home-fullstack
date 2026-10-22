@@ -5,7 +5,7 @@ import { createTestPool, resetDatabase } from './db';
 const pool = createTestPool();
 afterAll(() => pool.end());
 
-describe('audit_entries is append-only at the database level', () => {
+describe('audit_entries is append-only at the database level (DESIGN 10, case 32)', () => {
   let claimId: string;
 
   beforeEach(async () => {
