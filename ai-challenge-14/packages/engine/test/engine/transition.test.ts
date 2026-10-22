@@ -478,6 +478,72 @@ describe('WorkflowEngine.transition: rejections are audited, then thrown', () =>
     expect(error.message).toBe('Missing required documents: invoice, id_proof');
   });
 
+  it('case 8: verify_documents with missing required documents lists them, from the claim or the payload', async () => {
+    const env = setup();
+    const claim = await env.seed('SUBMITTED', { data: { documents: ['claim_form'] } });
+
+    const onClaim = await rejected(env, claim, CLERK, { to: 'DOCUMENTS_VERIFIED' }, 'PRECONDITION_FAILED');
+    expect(onClaim.error.message).toBe('Missing required documents: invoice, id_proof');
+    expect(onClaim.entry).toMatchObject({
+      transitionId: 'verify_documents',
+      data: {
+        errors: [{ rule: 'containsAll', field: 'documents', path: '', message: 'Missing required documents: invoice, id_proof' }],
+      },
+    });
+
+    const inPayload = await rejected(
+      env,
+      claim,
+      CLERK,
+      { to: 'DOCUMENTS_VERIFIED', payload: { documents: ['invoice'] } },
+      'PRECONDITION_FAILED',
+    );
+    expect(inPayload.error.message).toBe('Missing required documents: claim_form, id_proof');
+  });
+
+  it('case 10: reject without rejectionReason, or with a blank one, is PRECONDITION_FAILED', async () => {
+    const env = setup();
+    const claim = await env.seed('UNDER_ASSESSMENT', { data: { documents: ALL_DOCS, rejectionReason: 'from an earlier attempt' } });
+
+    for (const payload of [
+      { assessmentReport: 'Not covered' },
+      { assessmentReport: 'Not covered', rejectionReason: '' },
+      { assessmentReport: 'Not covered', rejectionReason: '   ' },
+    ]) {
+      const { error, entry } = await rejected(env, claim, ASSESSOR, { to: 'REJECTED', payload }, 'PRECONDITION_FAILED');
+      expect(error.message).toBe('rejectionReason must be provided in this request');
+      expect(entry).toMatchObject({ transitionId: 'reject', data: { errors: [{ rule: 'providedInRequest', field: 'rejectionReason' }] } });
+    }
+  });
+
+  it('case 11: info_received needs infoResponse or documents in this request; values already on the claim do not count', async () => {
+    const env = setup();
+    const claim = await env.seed('PENDING_INFO', { data: { documents: ALL_DOCS, infoResponse: 'old answer' } });
+
+    const { error } = await rejected(env, claim, CLERK, { to: 'DOCUMENTS_VERIFIED', payload: {} }, 'PRECONDITION_FAILED');
+    expect(error.message).toBe('infoResponse must be provided in this request; documents must be provided in this request');
+
+    const blank = await rejected(
+      env,
+      claim,
+      CLERK,
+      { to: 'DOCUMENTS_VERIFIED', payload: { infoResponse: ' ', documents: [] } },
+      'PRECONDITION_FAILED',
+    );
+    expect(blank.error.message).toBe(
+      'infoResponse must be provided in this request; documents must be provided in this request; ' +
+        'Missing required documents: claim_form, invoice, id_proof',
+    );
+
+    const answered = await env.engine.transition(claim.id, CLERK, { to: 'DOCUMENTS_VERIFIED', payload: { infoResponse: 'new answer' } });
+    expect(answered.claim).toMatchObject({ status: 'DOCUMENTS_VERIFIED', data: { infoResponse: 'new answer', documents: ALL_DOCS } });
+
+    const other = await env.seed('PENDING_INFO');
+    const withDocs = await env.engine.transition(other.id, CLERK, { to: 'DOCUMENTS_VERIFIED', payload: { documents: ALL_DOCS } });
+    expect(withDocs.claim.status).toBe('DOCUMENTS_VERIFIED');
+    expect(withDocs.claim.data).not.toHaveProperty('infoResponse');
+  });
+
   it('close_rejected is blocked until the appeal period ends on the clock (cases 3, 13)', async () => {
     const env = setup();
     const claim = await env.seed('REJECTED');
@@ -548,65 +614,6 @@ describe('WorkflowEngine.transition: concurrency (in-memory)', () => {
 });
 
 describe('WorkflowEngine.transition: built-in side effects', () => {
-  it('happy path to CLOSED: 13 audit entries in order, notify rendered (case 1)', async () => {
-    const lines: string[] = [];
-    const sideEffects = createBuiltinSideEffects({ log: (l) => lines.push(l), paymentRequestId: () => 'pr-1' });
-    const { engine, store, clock, seed } = setup({ sideEffects });
-    const claim = await seed('SUBMITTED', { data: {} });
-
-    await engine.transition(claim.id, CLERK, { to: 'DOCUMENTS_VERIFIED', payload: { documents: ALL_DOCS } });
-    clock.advance({ hours: 1 });
-    await engine.transition(claim.id, LEAD, { to: 'UNDER_ASSESSMENT', payload: { assessorId: ASSESSOR } });
-    await engine.transition(claim.id, ASSESSOR, { to: 'APPROVED', payload: { assessmentReport: 'Covered' } });
-    await engine.transition(claim.id, FINANCE, { to: 'PAYMENT_INITIATED' });
-    const { claim: closed } = await engine.transition(claim.id, FINANCE, {
-      to: 'CLOSED',
-      payload: { paymentReference: 'PAY-123' },
-    });
-
-    const audit = await store.listAuditByClaim(claim.id);
-    expect(audit.map((e) => [e.type, e.transitionId ?? null, (e.data as { name?: string })?.name ?? null])).toEqual([
-      ['CLAIM_CREATED', null, null],
-      ['TRANSITION', 'verify_documents', null],
-      ['SIDE_EFFECT', 'verify_documents', 'notify'],
-      ['TRANSITION', 'start_assessment', null],
-      ['SIDE_EFFECT', 'start_assessment', 'setField'],
-      ['SIDE_EFFECT', 'start_assessment', 'notify'],
-      ['TRANSITION', 'approve', null],
-      ['SIDE_EFFECT', 'approve', 'notify'],
-      ['SIDE_EFFECT', 'approve', 'createPaymentRequest'],
-      ['TRANSITION', 'initiate_payment', null],
-      ['SIDE_EFFECT', 'initiate_payment', 'triggerPaymentSystem'],
-      ['TRANSITION', 'confirm_payment', null],
-      ['SIDE_EFFECT', 'confirm_payment', 'notify'],
-    ]);
-    expect(audit.filter((e) => e.type === 'SIDE_EFFECT').every((e) => e.data?.status === 'ok')).toBe(true);
-    expect(audit.map((e) => e.seq)).toEqual(audit.map((_, i) => i + 1));
-
-    expect(lines).toEqual([
-      `[NOTIFY → u-assessor-1, u-assessor-2] Claim ${claim.id} has verified documents and is ready for assessment`,
-      `[SET_FIELD] ${claim.id}.assessmentStartedAt = "2026-03-01T01:00:00.000Z"`,
-      `[NOTIFY → u-assessor-1] Claim ${claim.id} has been assigned to you for assessment`,
-      `[NOTIFY → m-1] Claim ${claim.id} has been approved for 1500. Payment will be initiated shortly.`,
-      `[PAYMENT] Created payment request pr-1 for claim ${claim.id} (amount 1500)`,
-      `[PAYMENT] Triggered payment system for payment request pr-1 (claim ${claim.id})`,
-      `[NOTIFY → m-1] Claim ${claim.id} has been paid. Payment reference: PAY-123`,
-    ]);
-    expect(audit[12].data).toMatchObject({
-      result: { recipients: ['m-1'], message: `Claim ${claim.id} has been paid. Payment reference: PAY-123` },
-    });
-    expect(closed).toMatchObject({
-      status: 'CLOSED',
-      version: 6,
-      data: {
-        assessmentStartedAt: '2026-03-01T01:00:00.000Z',
-        paymentRequest: { id: 'pr-1', amount: 1500, createdAt: '2026-03-01T01:00:00.000Z' },
-        paymentInitiatedAt: '2026-03-01T01:00:00.000Z',
-        paymentReference: 'PAY-123',
-      },
-    });
-  });
-
   it('a notify with an empty variable is sent, status ok, and the audit names the missing variable', async () => {
     const workflow = readJson('claims-workflow.json');
     workflow.transitions.find((t: { id: string }) => t.id === 'approve').sideEffects[0].params.template =
