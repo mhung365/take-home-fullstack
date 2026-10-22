@@ -8,3 +8,4 @@ export * from './model';
 export * from './rules';
 export * from './side-effects';
 export * from './store';
+export { deepFreeze } from './util';

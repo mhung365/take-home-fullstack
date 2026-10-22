@@ -1,0 +1,28 @@
+{
+  "name": "@claims/store-postgres",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json",
+    "db:migrate": "tsc -p tsconfig.build.json && node dist/cli/migrate.js",
+    "test:integration": "vitest run"
+  },
+  "dependencies": {
+    "@claims/engine": "workspace:^",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.5"
+  }
+}
